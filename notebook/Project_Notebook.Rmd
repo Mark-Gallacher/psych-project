@@ -18,6 +18,7 @@ library(pwr)
 ## RENAME FUNCTIONS TO BE GENERAL AND INFORMATIVE
 ## THEN ADD TO GITHUB
 ## ADD A READ.ME DOC to explain folders
+## 
 
 # After for-loop power calculations, the output needs to be organised, so there is a column with sample size, and pivoted to make plotting the data easier.
 tidy_output_with_n <- function(array, 
