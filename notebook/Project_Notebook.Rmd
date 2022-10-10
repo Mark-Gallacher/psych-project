@@ -13,6 +13,10 @@ library(pwr)
 ```
 
 ```{r User-Defined Function, include=FALSE}
+## NEED TO CHANGE THE VARIABLE NAMES TO BE MORE HELPFUL, as sample_size_vec, SHOULD BE THE VECTOR USED TO ITERATE ROW A COLUMN
+## MOVE FUNCTIONS TO SEPARATE SCRIPT AND ADD MORE COMMENTS THERE, TO KEEP NOTEBOOK TIDY
+## RENAME FUNCTIONS TO BE GENERAL AND INFORMATIVE
+
 # After for-loop power calculations, the output needs to be organised, so there is a column with sample size, and pivoted to make plotting the data easier.
 tidy_output_with_n <- function(array, 
                                value_colname, 
@@ -311,5 +315,58 @@ cohen_dyn_a_df |>
   guides(colour = guide_legend(title = "Power"))+
   ggtitle("Effect Size Using Dynamic Alpha Levels - min(alpha, beta)")+
   theme_minimal()
+```
+```{r}
+alpha_zero_to_one <- seq(0.01, 1, 0.01)
+beta_zero_to_one <- array(NA, dim = c(length(alpha_zero_to_one), l_many_cohen))
+
+
+for (d in 1:l_many_cohen){
+  for (a in 1:length(alpha_zero_to_one)){
+
+    pwr <- pwr::pwr.t.test(n = 10, d = many_cohens_d[d], sig.level = alpha_zero_to_one[a])$power
+    beta = 1 - pwr
+    
+    beta_zero_to_one[a,d] <- beta
+  }
+}
+
+beta_alpha_diff <- tidy_output_with_n(array = beta_zero_to_one, 
+                                      iter_var = many_cohens_d, 
+                                      value_colname = "beta", 
+                                      name_colname = "effect_size", 
+                                      sample_size_vec = alpha_zero_to_one
+                                      )
+```
+
+```{r}
+
+beta_alpha_diff |> 
+  ggplot(aes(x = n, y = beta, color = effect_size))+
+  geom_line(size = 2, alpha = .3)+
+  geom_point(size = 1, alpha = .6)+
+  scale_x_continuous(name = "Alpha")+
+  scale_y_continuous(name = "Beta")+
+  guides(colour = guide_legend(title = "Effect Size"))+
+  ggtitle("Relationship between Alpha and Beta, for given Effect Size")+
+  theme_minimal()
+
+```
+
+```{r}
+
+beta_alpha_mean <- beta_alpha_diff |> 
+  mutate(mn = (n + beta)/2)
+
+beta_alpha_mean |> 
+  ggplot(aes(x = n, y = mn, color = effect_size))+
+  geom_line(size = 2, alpha = .3)+
+  geom_point(size = 1, alpha = .6)+
+  scale_x_continuous(name = "Alpha")+
+  scale_y_continuous(name = "(Alpha + Beta) / 2")+
+  guides(colour = guide_legend(title = "Effect Size"))+
+  ggtitle("Relationship between (Alpha + Beta)/2 and Alpha, for given Effect Size")+
+  theme_minimal()
+
 ```
 
