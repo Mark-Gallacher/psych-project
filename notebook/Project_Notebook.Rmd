@@ -9,7 +9,10 @@ output:
 --- 
 ```{r message=FALSE, warning=FALSE}
 library(tidyverse)
-library(pwr)
+library(pwr) # for Power calculation
+library(TOSTER) # for TOST equivalance testing
+
+source(here::here("other-scripts", "optim_equiv_func.R")) # to get optim_equiv function
 ```
 
 ```{r User-Defined Function, include=FALSE}
@@ -319,6 +322,8 @@ cohen_dyn_a_df |>
   ggtitle("Effect Size Using Dynamic Alpha Levels - min(alpha, beta)")+
   theme_minimal()
 ```
+
+
 ```{r}
 alpha_zero_to_one <- seq(0.01, 1, 0.01)
 beta_zero_to_one <- array(NA, dim = c(length(alpha_zero_to_one), l_many_cohen))
@@ -357,7 +362,7 @@ beta_alpha_diff |>
 ```
 
 ```{r}
-
+# Alpha and Beta - weighted equally
 beta_alpha_mean <- beta_alpha_diff |> 
   mutate(mn = (n + beta)/2)
 
@@ -371,5 +376,212 @@ beta_alpha_mean |>
   ggtitle("Relationship between (Alpha + Beta)/2 and Alpha, for given Effect Size")+
   theme_minimal()
 
+```
+
+```{r}
+# Alpha and Beta - Weighted differently
+c = 4
+
+beta_alpha_weighted <- beta_alpha_mean |> 
+  mutate(wd = ((c*n) + beta)/(c*2))
+
+beta_alpha_weighted |> 
+  ggplot(aes(x = n, y = wd, color = effect_size))+
+  geom_line(size = 1, alpha = .6)+
+  # geom_point(size = 1, alpha = .6)+
+  scale_x_continuous(name = "Alpha", limits = c(0,0.5))+
+  scale_y_continuous(name = "(Alpha + Beta) / 2")+
+  guides(colour = guide_legend(title = "Effect Size"))+
+  ggtitle("Relationship between (Alpha + Beta)/2 and Alpha, for given Effect Size")+
+  theme_minimal()
+```
+# Equivalence Testing
+
+## TOST - Using TOSTER package
+```{r, warning = FALSE, message=FALSE}
+
+sample = c(25,50,100)
+m = 100 # mean of both groups set to 100
+d = c(1:50, -1:-50)/10 # smaller increments for smoother graph
+sd = 10
+alpha = 0.05
+
+result <- array(NA, dim = c(length(d), 3*length(sample)))
+
+
+for(n in 1:length(sample)){
+  for(diff in 1:length(d)){
+    output <- TOSTER::tsum_TOST(
+      n1 = sample[n], n2 = sample[n],
+      m1 = m, m2 = m+d[diff], 
+      sd1 = sd, sd2 = sd, 
+      r12 = 0, # no correlation, so we get a simplified cohen's d
+      hypothesis = "EQU",
+      low_eqbound = -0.2,
+      high_eqbound = 0.2,
+      alpha = alpha,
+      eqbound_type = "SMD", 
+      bias_correction = FALSE, 
+      paired = TRUE)
+
+  result[diff, 3*n-2] <- output$TOST$p.value[1] # t test
+  result[diff, 3*n-1] <- output$TOST$p.value[2] # lower 
+  result[diff, 3*n] <- output$TOST$p.value[3]   # upper
+  }
+}
+
+```
+
+#### Tidying Output for better Visualisation
+```{r}
+result_tibble <- result |> 
+  as_tibble() |> 
+  rename("t_test_25" = V1,"lower_25" = V2,"upper_25" = V3,
+         "t_test_50" = V4,"lower_50" = V5,"upper_50" = V6,
+         "t_test_100" = V7,"lower_100" = V8,"upper_100" = V9
+         ) |>
+  mutate(diff = d) |> 
+  pivot_longer(cols = -10,
+               names_to = "t", 
+               values_to = "p") |> 
+  mutate(n = str_extract(t, pattern = "[0-9]+"),
+         t = str_extract(t, pattern = "[t_]*[a-z]+")
+         )
+```
+
+#### PLotting Cohen's d vs p-values with various sample sizes
+```{r}
+
+result_tibble |> 
+  ggplot(aes(x = diff/sd, y = p, colour = t, linetype = n))+
+  geom_line(size = 1.2, alpha = 0.7)+
+  geom_hline(yintercept = 0.05)+
+  ggtitle("TOST and t-test, p-value at different mean differences (SD = 10) at \nThree sample sizes (25,50,100)")+
+  scale_x_continuous(name = "Cohen's d",breaks = seq(-.5, .5, .1))+
+  theme_minimal()
+
+```
+
+### Looking at Larger Sample Sizes
+
+```{r, message=FALSE}
+sample = c(25,50, 100, 500, 1000)
+m = 100 # mean of both groups set to 100
+d = c(1:50, -1:-50)/10 # smaller increments for smoother graph
+sd = 10
+alpha = 0.05
+
+result_2 <- array(NA, dim = c(length(d), 3*length(sample)))
+
+
+for(n in 1:length(sample)){
+  for(diff in 1:length(d)){
+    output <- TOSTER::tsum_TOST(
+      n1 = sample[n], n2 = sample[n],
+      m1 = m, m2 = m+d[diff], 
+      sd1 = sd, sd2 = sd, 
+      r12 = 0, # no correlation, so we get a simplified cohen's d
+      hypothesis = "EQU",
+      low_eqbound = -0.2,
+      high_eqbound = 0.2,
+      alpha = alpha,
+      eqbound_type = "SMD", 
+      bias_correction = FALSE, 
+      paired = TRUE)
+
+  result_2[diff, 3*n-2] <- output$TOST$p.value[1] # t test
+  result_2[diff, 3*n-1] <- output$TOST$p.value[2] # lower 
+  result_2[diff, 3*n] <- output$TOST$p.value[3]   # upper
+  }
+}
+```
+#### Tidying Output to make Visualisations better
+```{r}
+result_tibble_2 <- result_2 |> 
+  as_tibble() |> 
+  rename("t_test_25" = V1,"lower_25" = V2,"upper_25" = V3,
+         "t_test_50" = V4,"lower_50" = V5,"upper_50" = V6,
+         "t_test_100" = V7,"lower_100" = V8,"upper_100" = V9,
+         "t_test_500" = V10,"lower_500" = V11,"upper_500" = V12,
+         "t_test_1000" = V13,"lower_1000" = V14,"upper_1000" = V15
+         ) |>
+  mutate(diff = d) |> 
+  pivot_longer(cols = -diff,
+               names_to = "t", 
+               values_to = "p") |> 
+  mutate(n = str_extract(t, pattern = "[0-9]+"),
+         t = str_extract(t, pattern = "[t_]*[a-z]+")
+         )
+```
+#### PLotting Cohen's d and p-values for small to large sample sizes
+```{r}
+result_tibble_2 |> 
+  filter(t != "t_test") |> 
+  ggplot(aes(x = diff/sd, y = p, colour = n, linetype = t))+
+  geom_line(size = 1.2, alpha = 0.7)+
+  geom_hline(yintercept = 0.05)+
+  ggtitle("TOST, p-value at different mean differences (SD = 10) at \nFive sample sizes (10,50,100,500,1000)")+
+  labs(caption = 
+      "Remember that the upper and lower bounds are 0.2 Cohen's d and we assume the correlation is zero, 
+       this reflects a more theoretical experiment. We need both tests to return a p value less than alpha 
+       for 'significant' equivalance.")+
+  scale_y_continuous(limits = c(0,0.20))+
+  scale_x_continuous(name = "Cohen's d",breaks = seq(-.5, .5, .1))+
+  theme_minimal()
+```
+### WIP - "Optimal" Testing for equivalance
+```{r, eval=FALSE}
+
+sample = c(100, 100, 100, 100, 100)
+m = 100 # mean of both groups set to 100
+d = c(1:1000)/100 # smaller increments for smoother graph
+sd = 10
+alpha = 0.05
+
+result_3 <- array(NA, dim = c(length(d), 2*length(sample)))
+
+for(s in 1:length(sample)){
+  for(diff in 1:length(d)){
+    n1 = rnorm(sample[s], mean = m, sd = sd)
+    n2 = rnorm(sample[s], mean = m+d[diff], sd = sd)
+    
+    output <- optim_equiv(n1, n2, margin = 2.828)
+    
+    result_3[diff, 2*s-1] <- output[1] # tost
+    result_3[diff, 2*s] <- output[2] # optim
+  }
+}
+
+```
+
+```{r, eval=FALSE}
+result_tibble_3 <- result_3 |> 
+  as_tibble() |> 
+  rename(
+    "tost_10a" = V1, "optim_10a" = V2,
+    "tost_10b" = V3, "optim_10b" = V4,
+    "tost_10c" = V5, "optim_10c" = V6,
+    "tost_10d" = V7, "optim_10d" = V8,
+    "tost_10e" = V9, "optim_10e" = V10, 
+         # "tost_50" = V3, "optim_50" = V4,
+         # "tost_100" = V5, "optim_100" = V6,
+         ) |> 
+  mutate(diff = d) |> 
+  pivot_longer(cols = (-diff),
+               names_to = "test", 
+               values_to = "p") |> 
+    mutate(n = str_extract(test, pattern = "[0-9]+"),
+           t = str_extract(test, pattern = "[t_]*[a-z]+")
+         )
+
+
+```
+
+```{r, eval=FALSE}
+result_tibble_3 |> 
+  ggplot(aes(x = diff, y = p, colour = t))+
+  geom_point(size = 1.2, alpha = 0.4)+
+  geom_hline(yintercept = 0.05)+
+  theme_minimal()
 ```
 

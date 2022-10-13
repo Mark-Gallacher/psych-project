@@ -86,8 +86,6 @@ df_ordered |>
 
 
 ```{r}
-
-
 sum = 0
 x_values = array(0, length(t))
 
