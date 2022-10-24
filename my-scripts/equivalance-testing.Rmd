@@ -5,13 +5,16 @@ date: "2022-10-13"
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, 
+                      fig.height = 8,
+                      fig.width = 8 )
 ```
 
 ```{r}
 library(tidyverse)
 library(pwr)
 library(TOSTER)
+library(ggforce)
 
 source(here::here("other-scripts", "optim_equiv_func.R")) # to get optim_equiv function
 
@@ -21,7 +24,7 @@ source(here::here("other-scripts", "optim_equiv_func.R")) # to get optim_equiv f
 
 sample = c(25,50,100)
 m = 100 # mean of both groups set to 100
-d = c(1:50, -1:-50)/10 # smaller increments for smoother graph
+d = c(1:100)/10 # smaller increments for smoother graph
 sd = 10
 alpha = 0.05
 
@@ -67,25 +70,23 @@ result_tibble <- result |>
          )
 ```
 
-
 ```{r}
 
 result_tibble |> 
-  ggplot(aes(x = diff/sd, y = p, colour = t, linetype = n))+
+  ggplot(aes(x = diff/sd, y = p, colour = n, linetype = t))+
   geom_line(size = 1.2, alpha = 0.7)+
   geom_hline(yintercept = 0.05)+
   ggtitle("TOST and t-test, p-value at different mean differences (SD = 10) at \nThree sample sizes (25,50,100)")+
-  scale_x_continuous(name = "Cohen's d",breaks = seq(-.5, .5, .1))+
+  scale_x_continuous(name = "Cohen's d", breaks = seq(0, 10, .1))+
+  # facet_grid(~ t)+
   theme_minimal()
 
 ```
 
-
-
 ```{r, message=FALSE}
 sample = c(25,50, 100, 500, 1000)
 m = 100 # mean of both groups set to 100
-d = c(1:50, -1:-50)/10 # smaller increments for smoother graph
+d = c(1:50)/10 # smaller increments for smoother graph
 sd = 10
 alpha = 0.05
 
@@ -134,21 +135,108 @@ result_tibble_2 <- result_2 |>
 
 ```{r}
 result_tibble_2 |> 
-  filter(t != "t_test") |> 
-  ggplot(aes(x = diff/sd, y = p, colour = n, linetype = t))+
+  filter(t == "lower") |> 
+  ggplot(aes(x = diff/sd, y = p, colour = n))+
   geom_line(size = 1.2, alpha = 0.7)+
   geom_hline(yintercept = 0.05)+
-  ggtitle("TOST, p-value at different mean differences (SD = 10) at \nFive sample sizes (10,50,100,500,1000)")+
+  ggtitle(paste(c("TOST, p-value at different mean differences (SD = 10) at \nFive sample sizes (", sample, ")"), collapse = " "))+
   labs(caption = 
-      "Remember that the upper and lower bounds are 0.2 Cohen's d and we assume the correlation is zero, 
+      "Remember that the upper and lower bounds are 0.2 Cohen's d and we assume the correlation is base, 
        this reflects a more theoretical experiment. We need both tests to return a p value less than alpha 
        for 'significant' equivalance.")+
-  scale_y_continuous(limits = c(0,0.20))+
+  scale_y_continuous(limits = c(0,1))+
   scale_x_continuous(name = "Cohen's d",breaks = seq(-.5, .5, .1))+
   theme_minimal()
 ```
 
+```{r, message=FALSE}
+sample = c(25,50, 100, 500, 1000)
+m = 100 # mean of both groups set to 100
+d = c(0:100)/10 # smaller increments for smoother graph
+sd = 10
+alpha = 0.05
+margin = seq(0.05, 0.5, 0.05)
+
+result_5 <- array(NA, dim = c(length(d), 3*length(sample)))
+
+tests = c("t", "low", "up")
+cols = 1:(dim(result_5)[2]/length(tests))
+
+
+p_val_loop_dat = list()
+
+## to get much better column names, but should work dynamically for rest of these loops - might be handy for a better function
+for (i in 1:length(cols)){
+
+  assign(paste0("str__", cols[i]), map_chr(tests, ~paste0(.x, cols[i])))
+  
+  values <- grep(x = names(.GlobalEnv), pattern = "str__[1-9]+")
+  
+  col_names <- c(unlist(mget(names(.GlobalEnv)[values])))
+}
+
+# loop to get p values for different margins for different differences at different sample sizes
+for(m in 1:length(margin)){
+  for(n in 1:length(sample)){
+    for(diff in 1:length(d)){
+      output <- TOSTER::tsum_TOST(
+        n1 = sample[n], n2 = sample[n],
+        m1 = m, m2 = m+d[diff], 
+        sd1 = sd, sd2 = sd, 
+        r12 = 0, # no correlation, so we get a simplified cohen's d
+        hypothesis = "EQU",
+        low_eqbound = -margin[m],
+        high_eqbound = margin[m],
+        alpha = alpha,
+        eqbound_type = "SMD", 
+        bias_correction = FALSE, 
+        paired = TRUE)
+  
+    result_5[diff, 3*n-2] <- output$TOST$p.value[1] # t test
+    result_5[diff, 3*n-1] <- output$TOST$p.value[2] # lower 
+    result_5[diff, 3*n] <- output$TOST$p.value[3]   # upper
+    }
+  }
+  
+  p_val_loop_dat[[m]] <- result_5 |>
+    as.data.frame(row.names = NA) |>
+    rename_with(.cols = contains("V"), .fn = ~ col_names) |>
+    mutate(diff = d) |> 
+    pivot_longer(cols = -diff,
+                 names_to = "test",
+                 values_to = "pval") |>
+    mutate("margin" = as.factor(margin[m]),
+           n = as.factor(sample[str_extract_all(test, pattern = "[1-9]+") |> as.numeric()]), 
+           test = unlist(str_extract_all(test, pattern = "[a-z]+")))
+
+  
+}
+
+```
+
 ```{r}
+result_tibble_5 <- p_val_loop_dat |> 
+  bind_rows()
+  
+head(result_tibble_5)
+```
+
+```{r, fig.height=9, fig.width= 9}
+
+result_tibble_5 |> 
+  filter(test == "low") |>
+  ggplot(aes(x = diff, y = pval, colour = margin))+
+  # geom_point(alpha = 0.5, size = 1)+
+  geom_line(alpha = 0.7, size = 1)+
+  scale_x_continuous("Difference between Groups")+
+  scale_y_continuous("p value")+
+  facet_grid(cols = vars(test), rows = vars(n), scales = "free_x")+
+  theme_minimal()+
+  theme(legend.position = "top")
+
+```
+
+```{r, eval = FALSE}
 
 sample = c(100, 100, 100, 100, 100)
 m = 100 # mean of both groups set to 100
@@ -172,7 +260,7 @@ for(s in 1:length(sample)){
 
 ```
 
-```{r}
+```{r, eval = FALSE}
 result_tibble_3 <- result_3 |> 
   as_tibble() |> 
   rename(
@@ -195,11 +283,10 @@ result_tibble_3 <- result_3 |>
 
 ```
 
-```{r}
+```{r, eval = FALSE}
 result_tibble_3 |> 
   ggplot(aes(x = diff, y = p, colour = t))+
   geom_point(size = 1.2, alpha = 0.4)+
   geom_hline(yintercept = 0.05)+
   theme_minimal()
 ```
-

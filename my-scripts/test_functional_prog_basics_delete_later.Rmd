@@ -1,0 +1,47 @@
+---
+title: "testing_func_prog"
+output: html_document
+date: "2022-10-18"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(tidyverse)
+
+a = tibble(a = c(1,2,3,4))
+b = tibble(b = c(2,4,6,8))
+c = tibble(c = c(1,4,9,16))
+
+
+```
+
+```{r}
+test_func <- function(obj){
+  obj * 2
+}
+
+test_func_2 <- function(obj){
+  obj + 3
+}
+
+test_func_3 <- function(obj, func){
+  func(obj)
+}
+```
+
+```{r}
+objs <- list(a,b,c)
+
+for(i in 1:length(objs)){
+  assign(paste0(colnames(objs[[i]]),"_df"), test_func(objs[[i]]))
+}
+
+map_dfc(.x = objs, 
+        .f = ~ test_func_3(.x, func = test_func) |> test_func_2()
+        )
+```
+
