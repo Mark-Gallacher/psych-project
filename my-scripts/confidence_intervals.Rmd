@@ -11,8 +11,6 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r}
 library(tidyverse)
 library(TOSTER)
-
-doParallel::registerDoParallel(cores = 12)
 ```
 
 ```{r}
@@ -26,57 +24,6 @@ p_values_log <- array(NA, dim = l_nlog)
 
 repeats = 1000
 ```
-
-
-```{r}
-t.test.loop <- function(n, 
-                        empty_vector, 
-                        break_loop = TRUE, 
-                        alpha = 0.05,
-                        get_pval = TRUE){
-
-  len_n <- length(n)
-
-  
-  if (get_pval){
-    
-    for (i in 1:len_n){
-      
-      t <- t.test(rnorm(n[i]), rnorm(n[i]), alternative = "two.sided", conf.level = 1 - alpha, var.equal = TRUE)
-      p_index <- grep(x = names(t), pattern = "p.value")
-      empty_vector[i] <- t[[p_index]]
-      
-      if (empty_vector[i] < alpha & break_loop){
-        break
-        }
-      }
-    
-    assign(x = "p_values", value = empty_vector)
-    
-  }else{
-    
-    for (i in 1:len_n){
-      
-      t <- t.test(rnorm(n[i]), rnorm(n[i]), alternative = "two.sided", conf.level = 1 - alpha, var.equal = TRUE)
-      p_index <- grep(x = names(t), pattern = "p.value")
-      mn_index <- grep(x = names(t), pattern = "estimate")
-      
-      if (t[[p_index]] < alpha){
-        
-        empty_vector[i] <- t[[mn_index]][[1]] - t[[mn_index]][[2]]
-        if (break_loop){
-          break
-          }
-        }
-      }
-    
-    assign(x = "mean_diff", value = empty_vector)
-    
-  }
- 
-}
-```
-
 
 ```{r, eval= TRUE}
 # n goes up in 5s
