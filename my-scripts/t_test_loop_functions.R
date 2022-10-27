@@ -16,7 +16,6 @@ get_pvals <- function(sample_size, break_loop = TRUE, alpha = 0.05){
       break
     }
   }
-  
   assign(x = "p_values_matrix", value = empty_vector, envir = .GlobalEnv)
   
 }
@@ -38,19 +37,32 @@ get_mean_diff <- function(sample_size,
       conf.level = 1 - alpha, 
       var.equal = TRUE)
   
-    if (t_test[[p]] < alpha){
-      if(break_loop){
+    if (t_test[[p]] < alpha & break_loop){
       empty_vector[i] <- abs(t_test[[mean]][[1]] - t_test[[mean]][[2]])
       break
-      }else{
-        empty_vector[i] <- abs(t_test[[mean]][[1]] - t_test[[mean]][[2]])
-      }
+    }else{
+      empty_vector[i] <- abs(t_test[[mean]][[1]] - t_test[[mean]][[2]])
     }
   }
   assign(x = "mean_diff_matrix", value = empty_vector, envir = .GlobalEnv)
 }
 
-
+summarise_t_test_loop <- function(df, n, repeats){
+  
+  result <- df |> 
+    mutate(n = n*2) |> 
+    pivot_longer(cols = -n, 
+                 values_to = "pval", 
+                 names_to = "set") |> 
+    group_by(n)  |> 
+    na.omit() |>
+    summarise(count = n(),
+              prop = count /repeats)
+  
+  
+  return(result)
+  
+}
 #################################
 #################################
 #################################

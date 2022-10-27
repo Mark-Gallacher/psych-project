@@ -17,7 +17,7 @@ library(TOSTER)
 library(ggforce)
 
 source(here::here("other-scripts", "optim_equiv_func.R")) # to get optim_equiv function
-
+source(here::here("my-scripts", "tost_loop_functions.R"))
 ```
 
 ```{r, warning = FALSE, message=FALSE}
@@ -27,52 +27,27 @@ m = 100 # mean of both groups set to 100
 d = c(1:100)/10 # smaller increments for smoother graph
 sd = 10
 alpha = 0.05
+margin = 0.2
 
-result <- array(NA, dim = c(length(d), 3*length(sample)))
+tost_pval <- get_pval_tost_loop(sample_vec = sample, 
+                                row_vec = d, 
+                                margin = margin, 
+                                mean = m, 
+                                sd = sd, 
+                                alpha = alpha)
 
-
-for(n in 1:length(sample)){
-  for(diff in 1:length(d)){
-    output <- TOSTER::tsum_TOST(
-      n1 = sample[n], n2 = sample[n],
-      m1 = m, m2 = m+d[diff], 
-      sd1 = sd, sd2 = sd, 
-      r12 = 0, # no correlation, so we get a simplified cohen's d
-      hypothesis = "EQU",
-      low_eqbound = -0.2,
-      high_eqbound = 0.2,
-      alpha = alpha,
-      eqbound_type = "SMD", 
-      bias_correction = FALSE, 
-      paired = TRUE)
-
-  result[diff, 3*n-2] <- output$TOST$p.value[1] # t test
-  result[diff, 3*n-1] <- output$TOST$p.value[2] # lower 
-  result[diff, 3*n] <- output$TOST$p.value[3]   # upper
-  }
-}
-
+knitr::kable(x = head(tost_pval, n = 10))
 ```
 
 ```{r}
-result_tibble <- result |> 
-  as_tibble() |> 
-  rename("t_test_25" = V1,"lower_25" = V2,"upper_25" = V3,
-         "t_test_50" = V4,"lower_50" = V5,"upper_50" = V6,
-         "t_test_100" = V7,"lower_100" = V8,"upper_100" = V9
-         ) |>
-  mutate(diff = d) |> 
-  pivot_longer(cols = -10,
-               names_to = "t", 
-               values_to = "p") |> 
-  mutate(n = str_extract(t, pattern = "[0-9]+"),
-         t = str_extract(t, pattern = "[t_]*[a-z]+")
-         )
+tost_pval_df <- tost_pval |> 
+  tidy_tost_loop(diff_vec = d)
+
+knitr::kable(x = head(tost_pval_df, n = 10))
 ```
 
 ```{r}
-
-result_tibble |> 
+tost_pval_df |> 
   ggplot(aes(x = diff/sd, y = p, colour = n, linetype = t))+
   geom_line(size = 1.2, alpha = 0.7)+
   geom_hline(yintercept = 0.05)+
@@ -80,7 +55,6 @@ result_tibble |>
   scale_x_continuous(name = "Cohen's d", breaks = seq(0, 10, .1))+
   # facet_grid(~ t)+
   theme_minimal()
-
 ```
 
 ```{r, message=FALSE}
@@ -90,51 +64,25 @@ d = c(1:50)/10 # smaller increments for smoother graph
 sd = 10
 alpha = 0.05
 
-result_2 <- array(NA, dim = c(length(d), 3*length(sample)))
+tost_pval_2 <- get_pval_tost_loop(sample_vec = sample, 
+                                row_vec = d, 
+                                margin = margin, 
+                                mean = m, 
+                                sd = sd, 
+                                alpha = alpha,
+                                eqbound_type = "SMD")
 
 
-for(n in 1:length(sample)){
-  for(diff in 1:length(d)){
-    output <- TOSTER::tsum_TOST(
-      n1 = sample[n], n2 = sample[n],
-      m1 = m, m2 = m+d[diff], 
-      sd1 = sd, sd2 = sd, 
-      r12 = 0, # no correlation, so we get a simplified cohen's d
-      hypothesis = "EQU",
-      low_eqbound = -0.2,
-      high_eqbound = 0.2,
-      alpha = alpha,
-      eqbound_type = "SMD", 
-      bias_correction = FALSE, 
-      paired = TRUE)
-
-  result_2[diff, 3*n-2] <- output$TOST$p.value[1] # t test
-  result_2[diff, 3*n-1] <- output$TOST$p.value[2] # lower 
-  result_2[diff, 3*n] <- output$TOST$p.value[3]   # upper
-  }
-}
+knitr::kable(x = head(tost_pval_2, n = 10))
 ```
 
 ```{r}
-result_tibble_2 <- result_2 |> 
-  as_tibble() |> 
-  rename("t_test_25" = V1,"lower_25" = V2,"upper_25" = V3,
-         "t_test_50" = V4,"lower_50" = V5,"upper_50" = V6,
-         "t_test_100" = V7,"lower_100" = V8,"upper_100" = V9,
-         "t_test_500" = V10,"lower_500" = V11,"upper_500" = V12,
-         "t_test_1000" = V13,"lower_1000" = V14,"upper_1000" = V15
-         ) |>
-  mutate(diff = d) |> 
-  pivot_longer(cols = -diff,
-               names_to = "t", 
-               values_to = "p") |> 
-  mutate(n = str_extract(t, pattern = "[0-9]+"),
-         t = str_extract(t, pattern = "[t_]*[a-z]+")
-         )
+tost_pval_2_df <- tost_pval_2 |> 
+  tidy_tost_loop(diff_vec = d)
 ```
 
 ```{r}
-result_tibble_2 |> 
+tost_pval_2_df |> 
   filter(t == "lower") |> 
   ggplot(aes(x = diff/sd, y = p, colour = n))+
   geom_line(size = 1.2, alpha = 0.7)+
@@ -151,86 +99,47 @@ result_tibble_2 |>
 
 ```{r, message=FALSE}
 sample = c(25,50, 100, 500, 1000)
-m = 100 # mean of both groups set to 100
+mn = 100 # mean of both groups set to 100
 d = c(0:100)/10 # smaller increments for smoother graph
 sd = 10
 alpha = 0.05
 margin = seq(0.05, 0.5, 0.05)
 
-result_5 <- array(NA, dim = c(length(d), 3*length(sample)))
-
-tests = c("t", "low", "up")
-cols = 1:(dim(result_5)[2]/length(tests))
-
-
 p_val_loop_dat = list()
 
-## to get much better column names, but should work dynamically for rest of these loops - might be handy for a better function
-for (i in 1:length(cols)){
-
-  assign(paste0("str__", cols[i]), map_chr(tests, ~paste0(.x, cols[i])))
-  
-  values <- grep(x = names(.GlobalEnv), pattern = "str__[1-9]+")
-  
-  col_names <- c(unlist(mget(names(.GlobalEnv)[values])))
-}
 
 # loop to get p values for different margins for different differences at different sample sizes
 for(m in 1:length(margin)){
-  for(n in 1:length(sample)){
-    for(diff in 1:length(d)){
-      output <- TOSTER::tsum_TOST(
-        n1 = sample[n], n2 = sample[n],
-        m1 = m, m2 = m+d[diff], 
-        sd1 = sd, sd2 = sd, 
-        r12 = 0, # no correlation, so we get a simplified cohen's d
-        hypothesis = "EQU",
-        low_eqbound = -margin[m],
-        high_eqbound = margin[m],
-        alpha = alpha,
-        eqbound_type = "SMD", 
-        bias_correction = FALSE, 
-        paired = TRUE)
   
-    result_5[diff, 3*n-2] <- output$TOST$p.value[1] # t test
-    result_5[diff, 3*n-1] <- output$TOST$p.value[2] # lower 
-    result_5[diff, 3*n] <- output$TOST$p.value[3]   # upper
-    }
-  }
-  
-  p_val_loop_dat[[m]] <- result_5 |>
-    as.data.frame(row.names = NA) |>
-    rename_with(.cols = contains("V"), .fn = ~ col_names) |>
-    mutate(diff = d) |> 
-    pivot_longer(cols = -diff,
-                 names_to = "test",
-                 values_to = "pval") |>
-    mutate("margin" = as.factor(margin[m]),
-           n = as.factor(sample[str_extract_all(test, pattern = "[1-9]+") |> as.numeric()]), 
-           test = unlist(str_extract_all(test, pattern = "[a-z]+")))
+  p_val_loop_dat[[m]] <- get_pval_tost_loop(sample_vec = sample, 
+                     row_vec = d, 
+                     margin = margin[m], 
+                     mean = mn , 
+                     sd = sd, 
+                     alpha = alpha, 
+                     eqbound_type = "SMD") |> 
+    tidy_tost_loop(diff_vec = d) |> 
+    mutate("margin" = as.factor(margin[m]))
 
-  
 }
 
-```
-
-```{r}
-result_tibble_5 <- p_val_loop_dat |> 
+tost_pval_margins_df <- p_val_loop_dat |> 
   bind_rows()
+
   
-head(result_tibble_5)
+head(tost_pval_margins_df)
 ```
 
 ```{r, fig.height=9, fig.width= 9}
 
-result_tibble_5 |> 
-  filter(test == "low") |>
-  ggplot(aes(x = diff, y = pval, colour = margin))+
+tost_pval_margins_df |> 
+  filter(t != "t") |> 
+  ggplot(aes(x = diff, y = p, colour = margin))+
   # geom_point(alpha = 0.5, size = 1)+
   geom_line(alpha = 0.7, size = 1)+
   scale_x_continuous("Difference between Groups")+
   scale_y_continuous("p value")+
-  facet_grid(cols = vars(test), rows = vars(n), scales = "free_x")+
+  facet_grid(cols = vars(t), rows = vars(factor(n, levels = sample)), scales = "free_x")+
   theme_minimal()+
   theme(legend.position = "top")
 

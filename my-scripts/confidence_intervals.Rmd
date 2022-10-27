@@ -11,118 +11,53 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r}
 library(tidyverse)
 library(TOSTER)
+
+source(file = here::here("my-scripts", "tost_loop_functions.R"))
+```
+
+```{r, eval= TRUE}
+p_vals_tost_break <- read_csv(file = here::here("./sim_data/p_vals_tost_break.csv"))
+p_vals_tost_no_break <- read_csv(file = here::here("./sim_data/p_vals_tost_no_break.csv"))
+p_vals_tost_break_logn <- read_csv(file = here::here("./sim_data/p_vals_tost_break_logn.csv"))
+p_vals_tost_break_small_alpha <- read_csv(file = here::here("./sim_data/p_vals_tost_break_small_alpha.csv"))
 ```
 
 ```{r}
 n = seq(5, 5000, length.out = 1000)
 l_n = length(n)
-p_values <- array(NA, dim = l_n)
 
 n_log <- 10^(seq(1,4,.01))
 l_nlog = length(n_log)
-p_values_log <- array(NA, dim = l_nlog)
 
 repeats = 1000
-```
 
-```{r, eval= TRUE}
-# n goes up in 5s
-p_matrix <- replicate(repeats, expr = t.test.loop(n, p_values)) |>
-  as.data.frame(row.names = as.character(1:length(n)))
-# Don't break loop, 1 mil p values
-p_matrix2 <- replicate(repeats, expr = t.test.loop(n, p_values, break_loop = FALSE)) |>
-  as.data.frame(row.names = NA)
-# n goes up as a log, so see how sample increase changes shape of curve
-p_matrix_log <- replicate(repeats, expr = t.test.loop(n_log, p_values_log)) |>
-  as.data.frame(row.names = NA)
-# alpha of 0.005
-p_matrix_a <- replicate(repeats, expr = t.test.loop(n, p_values, alpha = 0.005)) |>
-  as.data.frame(row.names = NA)
+p_vals_tost_break_df <- p_vals_tost_break |> 
+   tidy_tost_pval(n = n, repeats = repeats)
 
-colnames(p_matrix) <- paste0(1:repeats)
-colnames(p_matrix2) <- paste0(1:repeats)
-colnames(p_matrix_log) <- paste0(1:repeats)
-colnames(p_matrix_a) <- paste0(1:repeats)
+p_vals_tost_break_small_alpha_df <- p_vals_tost_break_small_alpha |> 
+  tidy_tost_pval(n = n, repeats = repeats)
 
-# write_csv(x = as.data.frame(p_matrix), file = "./my-scripts/p_matrix.csv")
-# write_csv(x = as.data.frame(p_matrix2), file = "./my-scripts/p_matrix2.csv")
-# write_csv(x = as.data.frame(p_matrix_log), file = "./my-scripts/p_matrix_log.csv")
-# write_csv(x = as.data.frame(p_matrix_a), file = "./my-scripts/p_matrix_a.csv")
-```
+p_vals_tost_break_logn_df <- p_vals_tost_break_logn |> 
+  tidy_tost_pval(n = n_log, repeats = repeats)
 
-```{r}
-p_matrix <- read_csv(file = "../my-scripts/p_matrix.csv", col_types = "?")
-```
-
-```{r}
-p_df <- p_matrix |> 
-  mutate(n = n*2) |> 
-  select(n, everything()) |> 
-  pivot_longer(cols = -n, 
-               values_to = "pval", 
-               names_to = "set") |> 
-  group_by(n)  |> 
-  na.omit() |>
-  summarise(count = n(),
-            prop = count /repeats)
-
+p_vals_tost_no_break_df <- p_vals_tost_no_break |> 
+  tidy_tost_pval(n = n, repeats = repeats)
 ```
 
 ```{r}
 
-p_df |> 
+p_vals_tost_break_df |> 
   ggplot()+
   geom_line(aes(x = n, y =  prop ), size = 1, colour = "lightgrey")+
+  geom_line(aes(x = n, y =  prop ), data = p_vals_tost_break_small_alpha_df, size = 1, colour = "skyblue")+
   geom_line(aes(x = n, y = 1 - prop), size = 1, colour = "black")+
+  geom_line(aes(x = n, y = 1 - prop), data = p_vals_tost_break_small_alpha_df, size = 1, colour = "deepskyblue4")+
   scale_x_log10("N")+
   scale_y_continuous("Proportation of Decisions")+
   theme_minimal()
 ```
-
 ```{r}
-# p_matrix_a <- read_csv(file = "../my-scripts/p_matrix.csv", col_types = "?")
-
-p_a_df <- p_matrix_a |> 
-  mutate(n = n*2, alpha = 0.005) |> 
-  select(n, alpha, everything()) |> 
-  pivot_longer(cols = c(-n, -alpha), 
-               values_to = "pval", 
-               names_to = "set") |> 
-  group_by(n)  |> 
-  na.omit() |>
-  summarise(count = n(),
-            prop = count /repeats)
-
-```
-
-```{r}
-p_a_df |> 
-  ggplot()+
-  geom_line(aes(x = n, y =  prop ), size = 1, colour = "lightgrey")+
-  geom_line(aes(x = n, y = 1 - prop), size = 1, colour = "black")+
-  scale_x_log10("N")+
-  scale_y_continuous("Proportation of Decisions")+
-  theme_minimal()
-```
-
-
-```{r}
-p_log_df <- p_matrix_log |> 
-  mutate(n = n_log*2) |> 
-  select(n, everything()) |> 
-  pivot_longer(cols = -n, 
-               values_to = "pval", 
-               names_to = "set") |> 
-  group_by(n) |> 
-  na.omit() |> 
-  summarise(count = n(), 
-            prop = count /repeats)
-
-```
-
-```{r}
-
-p_log_df |> 
+p_vals_tost_break_logn_df |> 
   ggplot()+
   geom_line(aes(x = n, y = prop ), size = 1, colour = "black")+
   geom_line(aes(x = n, y = 1 - prop), size = 1, colour = "lightgrey")+
@@ -131,29 +66,8 @@ p_log_df |>
   theme_minimal()
 ```
 
-
-```{r}
-p_matrix2 <- read_csv(file = "../my-scripts/p_matrix2.csv", col_types = "?")
-```
-
-```{r}
-p_df2 <- p_matrix2 |> 
-  mutate(n = n*2) |> 
-  select(n, everything()) |> 
-  pivot_longer(cols = -n, 
-               values_to = "pval", 
-               names_to = "set") |> 
-  group_by(n) |> 
-  na.omit() |> 
-  summarise(count = n(),
-            prop = sum(pval<0.05)/(count*100), 
-            mn = mean(pval), 
-            sd = sd(pval))
-
-```
-
 ```{r, fig.height=8}
-p_df2 |> 
+p_vals_tost_no_break_df |> 
   ggplot()+
   geom_ribbon(aes(x= n, ymin = mn - (sd/2), ymax = mn + (sd/2)), alpha = .4, fill = "lightblue")+
   geom_point(aes(x = n, y = mn), size = 1.5, alpha = .5, colour = "darkblue")+

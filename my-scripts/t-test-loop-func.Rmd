@@ -22,53 +22,10 @@ l_n = length(n)
 p_values <- array(NA, dim = l_n)
 
 repeats = 1000
-dat = list()
-```
-
-
-```{r, eval = FALSE}
-##  
-##  WARNING: lOOP TAKES SEVERAL MINUTES TO RUN
-##
-
-for (i in 1:l_a){
-  
-  dat[[i]] <-  replicate(repeats, expr = t.test.loop(n, p_values, alpha = alphas[i], break_loop = TRUE, get_pval = TRUE)) |>
-    as.data.frame(row.names = NA) |> 
-    rename_with(.cols = contains("V"), .fn =  ~ 1:repeats) |> 
-    mutate(n = n*2, alpha = as.factor(alphas[i])) |>
-    select(n, alpha, everything()) |>
-    pivot_longer(cols = c(-n, -alpha),
-                 values_to = "pval",
-                 names_to = "set")
-
-  dat
-}
-
-
-```
-
-
-```{r, eval = FALSE}
-
-# df <- dat |>
-#   bind_rows() |>
-#   group_by(n, alpha)  |>
-#   na.omit() |>
-#   summarise(count = n(),
-#             prop = count /repeats,
-#             .groups = "drop")
-# 
-# 
-# 
-# head(df)
-
-# write_csv(x= df, file = "../my-scripts/p_values_alphas_summary.csv")
-# write_csv(x= as.data.frame(dat), file = "../my-scripts/p_values_alphas.csv")
 ```
 
 ```{r, fig.height=8}
-df <- read_csv("p_values_alphas_summary.csv", col_types = "ifi?")
+df <- read_csv(file = here::here("sim_data","seq_t_test_many_alphas.csv"), col_types = "ifi?")
 
 
 df |> 
@@ -81,42 +38,9 @@ df |>
 ```
 
 
-```{r, eval=FALSE}
-means = list()
-
-for (i in 1:l_a){
-  
- means[[i]] <-  replicate(repeats, expr = t.test.loop(n, p_values, alpha = alphas[i], break_loop = TRUE, get_pval = FALSE)) |>
-  as.data.frame(row.names = NA) |> 
-  rename_with(.cols = contains("V"), .fn =  ~ 1:repeats) |> 
-  mutate(n = n*2, alpha = as.factor(alphas[i])) |> 
-  select(n, alpha, everything()) |> 
-  pivot_longer(cols = c(-n, -alpha),
-               values_to = "diff",
-               names_to = "set") 
-
- means
-}
-```
-
-```{r, eval = FALSE}
-mean_df <- means |>
-  bind_rows() |>
-  group_by(n, alpha)  |>
-  na.omit()|> 
-  mutate(mean = mean(abs(diff)), 
-         sd = sd (abs(diff)))
-
- 
-# write_csv(x= mean_df, file = "../my-scripts/mean_diff_alpha_summary.csv")
-# write_csv(x= as.data.frame(means), file = "../my-scripts/mean_diff_alpha.csv")
-
-head(mean_df)
-```
-
 ```{r, fig.height=8, message= F}
 
-mean_df <- read_csv("mean_diff_alpha_summary.csv", col_types = "ifiddd")
+mean_df <- read_csv(file = here::here("sim_data","seq_t_test_many_alphas_mean.csv"))
 
 mean_df |>
   filter(alpha == 0.05) |> 
@@ -135,7 +59,7 @@ mean_df |>
 
 ```{r, fig.height= 8, fig.width= 13}
 mean_df |> 
-  ggplot(aes(x = n, y = abs(diff), colour = alpha))+
+  ggplot(aes(x = n, y = abs(diff), colour = as.factor(alpha)))+
   geom_point(size = 2, alpha = .3)+
   geom_line(aes(y = mean), size = 2, alpha = .2)+
   geom_point(aes(y = mean), size = 1, alpha = .7)+
