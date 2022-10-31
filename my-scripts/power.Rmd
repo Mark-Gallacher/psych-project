@@ -5,7 +5,7 @@ date: "2022-09-29"
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, fig.height = 8, fig.width = 10)
 ```
 
 ```{r}

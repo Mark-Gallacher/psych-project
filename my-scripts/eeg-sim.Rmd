@@ -1,0 +1,212 @@
+---
+title: "eeg-sim"
+output: html_document
+date: "2022-10-31"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Here is code to stick in an R notebook:
+
+
+
+---
+title: "Cluster onsets: simulated signals"
+author: "Guillaume A. Rousselet"
+date: "`r Sys.Date()`"
+output:
+  pdf_document:
+    fig_caption: no
+    number_sections: no
+    toc: yes
+    toc_depth: 2
+    # github_document:
+    # html_preview: yes
+    # toc: yes
+    # toc_depth: 2
+---
+
+
+
+# Dependencies
+```{r}
+library(ggplot2)
+library(tibble)
+#library(primer) # for one_over_f function
+# library(permuco)
+```
+
+
+
+Edit `one_over_f` function to control variance.
+Original function is available on [GitHub](https://github.com/HankStevens/primer).
+Copyright Hank Stevens.
+
+
+
+```{r}
+one_over_f <- function(gamma = 1, N = 200, outvar = 1){
+    N.2 <- N/2
+    sine.waves <- matrix(NA, nrow = N, ncol = N.2)
+    steps = 2 * pi * (1:N)/N
+    phase <- stats::runif(N.2, 0, 2 * pi)
+    for (i in 1:N.2) {
+        freq <- i
+        weight <- 1/(freq^gamma)
+        y <- weight * sin(freq * steps + phase[i])
+        sine.waves[, i] <- y
+    }
+    out <- rowSums(sine.waves)
+    # force var = outvar and mean = 0
+    out <- out - mean(out);
+    out <- out / sd(out);
+    out <- out * sqrt(outvar);
+    return(out)
+}
+```
+
+
+
+
+# Make template
+
+
+
+```{r}
+# true onset = 160 ms, F=17, max at F=26
+true_onset <- 160
+Xf <- seq(0, 500, 10)
+Nf <- length(Xf)
+temp1 <- vector(mode = "numeric", length = Nf)
+erp <- dnorm(seq(-1.5, 1.5, length.out=21), 0, 1)
+erp <- erp - min(erp)
+erp <- erp / max(erp)
+temp2 <- c(rep(0, 15), erp, rep(0, 15))
+```
+
+
+
+## Illustrate template
+```{r}
+df <- tibble(x = Xf,
+             y = temp2)
+ggplot(df, aes(x, y)) +
+  geom_line()
+```
+
+
+
+# Generate noise
+
+
+
+## For one gamma value
+```{r}
+Nt <- 5 # number of trials
+gsp <- 0.7 # gamma spectral power
+resmat <- matrix(data = 0, nrow = Nt, ncol = Nf)
+for(T in 1:Nt){
+  resmat[T,] <- one_over_f(gamma = gsp, Nf)
+}
+
+
+
+df <- tibble(x = rep(Xf, each = Nt),
+             y = as.vector(resmat),
+             trials = factor(rep(seq(1,Nt), Nf)))
+ggplot(df, aes(x, y, group = trials, colour = trials)) +
+  geom_line()
+```
+
+
+
+## For multiple gamma values
+```{r}
+gsp <- seq(0, 1, 0.2) # gamma spectral power
+outvar <- 1 # noise variance
+Nt <- length(gsp)
+resmat <- matrix(data = 0, nrow = Nt, ncol = Nf)
+for(T in 1:Nt){
+  set.seed(1) # same random seed to better compare trials
+  resmat[T,] <- one_over_f(gamma = gsp[T], Nf, outvar = outvar)
+}
+
+
+
+df <- tibble(x = rep(Xf, each = Nt),
+             y = as.vector(resmat),
+             gamma = factor(rep(gsp, Nf)))
+ggplot(df, aes(x, y, group = gamma)) +
+  geom_line(size = 1) +
+  # scale_colour_viridis_d(end = 0.95)
+  facet_wrap(vars(gamma))
+```
+## Illustrate signals + noise
+
+
+
+```{r}
+# set.seed(666)
+gsp <- 0.7 # gamma spectral power
+outvar <- 0.1 # noise variance
+cond2 <- temp2 + one_over_f(gamma = gsp, Nf, outvar = outvar)
+cond1 <- temp1 + one_over_f(gamma = gsp, Nf, outvar = outvar)
+
+
+
+df <- tibble(x = rep(Xf,2),
+             y = c(cond1, cond2),
+             conds = factor(rep(c("Condition 1", "Condition 2"), each = Nf)))
+ggplot(df, aes(x, y, colour = conds)) +
+  geom_line()
+
+
+
+# Nt <- 12
+# resmat.sig <- matrix(data = 0, nrow = Nt, ncol = Nf)
+# resmat.noi <- matrix(data = 0, nrow = Nt, ncol = Nf)
+# for(T in 1:Nt){
+#   resmat.sig[T,] <- temp2 + one_over_f(gamma = gsp, Nf, outvar = outvar)
+#   resmat.noi[T,] <- temp1 + one_over_f(gamma = gsp, Nf, outvar = outvar)
+# }
+#
+# df <- tibble(x = rep(rep(Xf, each = Nt),2),
+#              y = c(as.vector(resmat.sig), as.vector(resmat.noi)),
+#              trials = factor(rep(1:Nt, Nf*2)),
+#              cat = factor(rep(c("Signal", "Noise"), each = Nt*Nf)))
+# ggplot(df, aes(x, y, group = trials, colour = cat)) +
+#   geom_line(size = 1) +
+#   facet_wrap(vars(trials))
+```
+
+
+
+## Illustrate averages
+
+
+
+```{r}
+# set.seed(666)
+Nt <- 50 # number of trials
+gsp <- 0.7 # gamma spectral power
+outvar <- 1 # noise variance
+cond1 <- matrix(0, nrow = Nt, ncol = Nf)
+cond2 <- matrix(0, nrow = Nt, ncol = Nf)
+for(T in 1:Nt){
+cond2[T,] <- temp2 + one_over_f(gamma = gsp, Nf, outvar = outvar)
+cond1[T,] <- temp1 + one_over_f(gamma = gsp, Nf, outvar = outvar)  
+}
+cond1 <- apply(cond1, 2, mean)
+cond2 <- apply(cond2, 2, mean)
+
+
+
+df <- tibble(x = rep(Xf,2),
+             y = c(cond1, cond2),
+             conds = factor(rep(c("Condition 1", "Condition 2"), each = Nf)))
+ggplot(df, aes(x, y, colour = conds)) +
+  geom_line() +
+  geom_vline(xintercept = true_onset)
+```

@@ -92,8 +92,8 @@ get_pwr_or_eff_dyn_alpha <- function(col_vec,           # A vector containing va
   library(tidyverse)
   library(pwr)
   
-  if (length(alpha_vec) < 2){
-    stop("Alpha needs to be a matrix, ensure there are no values less than zero or greater than one")
+  if (length(alpha_vec) < 2 | !(is.matrix(alpha_vec)|is.vector(alpha_vec)|is_tibble(alpha_vec))){
+    stop("Alpha needs to be a vector or matrix, ensure there are no values less than zero or greater than one")
   }
   
   len_row <- length(row_vec)
@@ -117,7 +117,13 @@ get_pwr_or_eff_dyn_alpha <- function(col_vec,           # A vector containing va
       ## Allows on to be NULL with the other can be iterated over
       d = col_vec_1[i]    
       power = col_vec_2[i]
-      alpha = as.numeric(alpha_vec[n,i])
+      
+      if(is.matrix(alpha_vec)|is_tibble(alpha_vec)){
+        alpha = as.numeric(alpha_vec[n,i])
+      }else{
+        alpha = as.numeric(alpha_vec[n])
+      }
+      
       
       output[n, i] <- pwr.t.test(sig.level = alpha, 
                                  d = d, 

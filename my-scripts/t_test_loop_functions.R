@@ -1,50 +1,110 @@
+
+# Might be Better to use get_mean_diff, as the output is more detailed
+# We can do more things with the data from it
 get_pvals <- function(sample_size, break_loop = TRUE, alpha = 0.05){
+  library(tidyverse)
   
   len_n <- length(sample_size)
-  empty_vector <- array(NA, dim = len_n)
+  p_val_vector <- array(NA, dim = len_n)
   var <- "p.value"
   
   for (i in 1:len_n){
-    empty_vector[i] <- t.test(
+    p_val_vector[i] <- t.test(
       rnorm( sample_size[i] ), 
       rnorm( sample_size[i] ), 
       alternative = "two.sided", 
       conf.level = 1 - alpha, 
       var.equal = TRUE)[[var]]
     
-    if (empty_vector[i] < alpha & break_loop){
+    if (p_val_vector[i] < alpha & break_loop){
       break
     }
   }
-  assign(x = "p_values_matrix", value = empty_vector, envir = .GlobalEnv)
+  return(p_val_vector)
+}
+
+get_pvals_one_sample <- function(sample_size, break_loop = TRUE, alpha = 0.05){
+  library(tidyverse)
   
+  len_n <- length(sample_size)
+  p_val_vector <- array(NA, dim = len_n)
+  var <- "p.value"
+  
+  for (i in 1:len_n){
+    p_val_vector[i] <- t.test(
+      rnorm( sample_size[i] ), 
+      alternative = "two.sided", 
+      conf.level = 1 - alpha, 
+      var.equal = TRUE)[[var]]
+    
+    if (p_val_vector[i] < alpha & break_loop){
+      break
+    }
+  }
+  return(p_val_vector)
 }
 
 get_mean_diff <- function(sample_size, 
                           alpha = 0.05,
-                          break_loop = TRUE){
+                          break_loop = TRUE, 
+                          mean_diff = 0, 
+                          use_rope = FALSE, 
+                          margin = 0){
+  library(tidyverse)
   
   len_n <- length(sample_size)
-  empty_vector <- array(NA, dim = len_n)
+  
+  mean_diff_vector <- array(NA, dim = len_n)
+  p_vector <- array(NA, dim = len_n)
+  conf_vector <- array(NA, dim = c(len_n, 2))
+ 
   p <- "p.value"
   mean <- "estimate"
+  ci <- "conf.int"
   
   for (i in 1:len_n){
     t_test <- t.test(
-      rnorm( sample_size[i] ), 
-      rnorm( sample_size[i] ), 
+      rnorm( sample_size[i], mean = 0 ), 
+      rnorm( sample_size[i], mean = 0 + mean_diff), 
       alternative = "two.sided", 
       conf.level = 1 - alpha, 
       var.equal = TRUE)
   
     if (t_test[[p]] < alpha & break_loop){
-      empty_vector[i] <- abs(t_test[[mean]][[1]] - t_test[[mean]][[2]])
-      break
-    }else{
-      empty_vector[i] <- abs(t_test[[mean]][[1]] - t_test[[mean]][[2]])
+      mean_diff <- abs(t_test[[mean]][[1]] - t_test[[mean]][[2]])
+      
+      if(use_rope){ # check if we are using a rope
+        
+        if(mean_diff > margin){ # check if difference is bigger than rope
+          
+        p_vector[i] <- t_test[[p]]
+        mean_diff_vector[i] <- mean_diff
+        conf_vector[i, 1] <- t_test[[ci]][[1]]
+        conf_vector[i, 2] <- t_test[[ci]][[2]]
+        break
+        }else{
+          next 
+        }
+      }else{
+        p_vector[i] <- t_test[[p]]
+        mean_diff_vector[i] <- mean_diff
+        conf_vector[i, 1] <- t_test[[ci]][[1]]
+        conf_vector[i, 2] <- t_test[[ci]][[2]]
+        break
+        }
+    }
+    if (!break_loop){
+      p_vector[i] <- t_test[[p]]
+      mean_diff_vector[i] <- abs(t_test[[mean]][[1]] - t_test[[mean]][[2]])
+      conf_vector[i, 1] <- t_test[[ci]][[1]]
+      conf_vector[i, 2] <- t_test[[ci]][[2]]
     }
   }
-  assign(x = "mean_diff_matrix", value = empty_vector, envir = .GlobalEnv)
+  
+ output <- mean_diff_vector |>
+    bind_cols(p_vector, conf_vector, .name_repair = ~ c("mean_diff","p", "l_ci", "u_ci")) 
+ 
+  return(output)
 }
 
 summarise_t_test_loop <- function(df, n, repeats){
@@ -58,7 +118,6 @@ summarise_t_test_loop <- function(df, n, repeats){
     na.omit() |>
     summarise(count = n(),
               prop = count /repeats)
-  
   
   return(result)
   

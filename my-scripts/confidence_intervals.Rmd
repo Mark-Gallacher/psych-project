@@ -20,6 +20,7 @@ p_vals_tost_break <- read_csv(file = here::here("./sim_data/p_vals_tost_break.cs
 p_vals_tost_no_break <- read_csv(file = here::here("./sim_data/p_vals_tost_no_break.csv"))
 p_vals_tost_break_logn <- read_csv(file = here::here("./sim_data/p_vals_tost_break_logn.csv"))
 p_vals_tost_break_small_alpha <- read_csv(file = here::here("./sim_data/p_vals_tost_break_small_alpha.csv"))
+p_vals_tost_break_one_sample <- read_csv(file = here::here("./sim_data/p_vals_tost_break_one_sample.csv"))
 ```
 
 ```{r}
@@ -32,16 +33,19 @@ l_nlog = length(n_log)
 repeats = 1000
 
 p_vals_tost_break_df <- p_vals_tost_break |> 
-   tidy_tost_pval(n = n, repeats = repeats)
+   summarise_t_test_loop(n = n, repeats = repeats)
 
 p_vals_tost_break_small_alpha_df <- p_vals_tost_break_small_alpha |> 
-  tidy_tost_pval(n = n, repeats = repeats)
+  summarise_t_test_loop(n = n, repeats = repeats)
 
 p_vals_tost_break_logn_df <- p_vals_tost_break_logn |> 
-  tidy_tost_pval(n = n_log, repeats = repeats)
+  summarise_t_test_loop(n = n_log, repeats = repeats)
 
 p_vals_tost_no_break_df <- p_vals_tost_no_break |> 
-  tidy_tost_pval(n = n, repeats = repeats)
+  summarise_t_test_loop(n = n, repeats = repeats)
+
+p_vals_tost_break_one_sample_df <- p_vals_tost_break_one_sample |> 
+   summarise_t_test_loop(n = n, repeats = repeats)
 ```
 
 ```{r}
@@ -49,13 +53,27 @@ p_vals_tost_no_break_df <- p_vals_tost_no_break |>
 p_vals_tost_break_df |> 
   ggplot()+
   geom_line(aes(x = n, y =  prop ), size = 1, colour = "lightgrey")+
-  geom_line(aes(x = n, y =  prop ), data = p_vals_tost_break_small_alpha_df, size = 1, colour = "skyblue")+
+  # geom_line(aes(x = n, y =  prop ), data = p_vals_tost_break_small_alpha_df, size = 1, colour = "skyblue")+
   geom_line(aes(x = n, y = 1 - prop), size = 1, colour = "black")+
-  geom_line(aes(x = n, y = 1 - prop), data = p_vals_tost_break_small_alpha_df, size = 1, colour = "deepskyblue4")+
+  # geom_line(aes(x = n, y = 1 - prop), data = p_vals_tost_break_small_alpha_df, size = 1, colour = "deepskyblue4")+
   scale_x_log10("N")+
   scale_y_continuous("Proportation of Decisions")+
   theme_minimal()
 ```
+```{r}
+
+p_vals_tost_break_one_sample_df |> 
+  ggplot()+
+  geom_line(aes(x = n, y =  prop ), size = 1, colour = "lightgrey")+
+  # geom_line(aes(x = n, y =  prop ), data = p_vals_tost_break_small_alpha_df, size = 1, colour = "skyblue")+
+  geom_line(aes(x = n, y = 1 - prop), size = 1, colour = "black")+
+  # geom_line(aes(x = n, y = 1 - prop), data = p_vals_tost_break_small_alpha_df, size = 1, colour = "deepskyblue4")+
+  scale_x_log10("N")+
+  scale_y_continuous("Proportation of Decisions")+
+  theme_minimal()
+```
+
+
 ```{r}
 p_vals_tost_break_logn_df |> 
   ggplot()+

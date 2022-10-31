@@ -28,9 +28,16 @@ p_vals_tost_break_logn <- replicate(repeats, expr = get_pvals(sample_size = n_lo
 p_vals_tost_break_small_alpha <- replicate(repeats, expr = get_pvals(sample_size = n, alpha = 0.005)) |>
   as_tibble(.name_repair = ~ str_c("p.value_", 1:repeats))
 
+# One Sided t-test
+p_vals_tost_break_one_sample <- replicate(repeats, expr = get_pvals_one_sample(sample_size = n)) |>  
+  as_tibble(.name_repair = ~ str_c("p.value_", 1:repeats))
+
+
 
 write_csv(x = p_vals_tost_break, file = here::here("sim_data/p_vals_tost_break.csv"))
 write_csv(x = p_vals_tost_no_break, file = here::here("sim_data/p_vals_tost_no_break.csv"))
 write_csv(x = p_vals_tost_break_logn, file = here::here("sim_data/p_vals_tost_break_logn.csv"))
 write_csv(x = p_vals_tost_break_small_alpha, file = here::here("sim_data//p_vals_tost_break_small_alpha.csv"))
+write_csv(x = p_vals_tost_break_one_sample, file = here::here("sim_data//p_vals_tost_break_one_sample.csv"))
+
 
