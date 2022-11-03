@@ -34,6 +34,7 @@ output:
 ```{r}
 library(ggplot2)
 library(tibble)
+library(tidyverse)
 #library(primer) # for one_over_f function
 # library(permuco)
 ```
@@ -194,19 +195,79 @@ gsp <- 0.7 # gamma spectral power
 outvar <- 1 # noise variance
 cond1 <- matrix(0, nrow = Nt, ncol = Nf)
 cond2 <- matrix(0, nrow = Nt, ncol = Nf)
-for(T in 1:Nt){
-cond2[T,] <- temp2 + one_over_f(gamma = gsp, Nf, outvar = outvar)
-cond1[T,] <- temp1 + one_over_f(gamma = gsp, Nf, outvar = outvar)  
+for(t in 1:Nt){
+cond2[t,] <- temp2 + one_over_f(gamma = gsp, Nf, outvar = outvar)
+cond1[t,] <- temp1 + one_over_f(gamma = gsp, Nf, outvar = outvar)  
 }
-cond1 <- apply(cond1, 2, mean)
-cond2 <- apply(cond2, 2, mean)
+cond1_mn <- apply(cond1, 2, mean)
+cond2_mn <- apply(cond2, 2, mean)
 
 
 
 df <- tibble(x = rep(Xf,2),
-             y = c(cond1, cond2),
+             y = c(cond1_mn, cond2_mn),
              conds = factor(rep(c("Condition 1", "Condition 2"), each = Nf)))
 ggplot(df, aes(x, y, colour = conds)) +
   geom_line() +
   geom_vline(xintercept = true_onset)
 ```
+
+
+
+
+```{r}
+p_values <- array(NA, Nt)
+md_values <- array(NA, Nt) # eman difference values
+
+for(t in 1:Nt){
+  t_test_values <- t.test(cond1[,t], cond2[,t], var.equal = FALSE)
+  p_values[t] <- t_test_values[["p.value"]]
+  mn_values[t] <- abs(t_test_values[["estimate"]][[1]] - t_test_values[["estimate"]][[2]])
+}
+
+t_test_df <- tibble(
+  value = p_values, 
+  time = Xf[-1],
+  mn_diff = mn_values
+  )
+
+rope_noise <- quantile(mn_values[1:16]) # from 10-160 milliseconds - pre-stimulus
+```
+
+Plotting P-values
+```{r}
+t_test_df |> 
+  ggplot(aes(x = time, y = -log(value)))+
+  geom_point(aes(colour = value < (0.05/ Nt)), show.legend = F, size = 2)+
+  geom_line() +
+  geom_hline(aes(yintercept = -log(0.05/ Nt)))+
+  theme_minimal()
+
+
+t_test_df |> 
+  ggplot(aes(x = time, y = value))+
+  geom_line()+
+  geom_point(aes(colour = value < (0.05/ Nt)), show.legend = F, size = 2)+
+  geom_hline(aes(yintercept = 0.05/ Nt))+
+  theme_minimal()
+```
+
+Plotting Mean Difference
+```{r}
+t_test_df |> 
+  ggplot(aes(x = time, y = mn_diff))+
+  geom_line()+
+  geom_point(aes(colour = mn_diff > rope_noise[2]), size = 2, show.legend = F)+
+  theme_minimal()+
+  annotate("rect", 
+           xmin = 0, 
+           xmax = max(t_test_df$time), 
+           ymin = rope_noise[1], 
+           ymax = rope_noise[2], 
+           alpha = .2)
+
+
+```
+
+
+
