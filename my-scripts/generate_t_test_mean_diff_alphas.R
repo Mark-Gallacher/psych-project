@@ -87,7 +87,7 @@ write_csv(x= seq_t_test_many_alphas_mean_with_diff, file = here::here("sim_data/
 
 dat = list()
 
-#Using a Rope of size 0.2
+#Using a Rope of size 0.5
 
 for (i in 1:l_a){
   
@@ -96,7 +96,7 @@ for (i in 1:l_a){
                                                       break_loop = T, 
                                                       mean_diff = 0, 
                                                       use_rope = T, 
-                                                      margin = 0.2)) |>  
+                                                      margin = .5)) |>  
     t() |> 
     as_tibble(.name_repair = ~c("mean_diff", "p", "l_ci", "u_ci")) |> 
     map_dfr(~unlist(.x)) |> 
@@ -110,11 +110,72 @@ seq_t_test_many_alphas_rope <- dat |>
   mutate(n = as.integer(rep(n*2, times = repeats * l_a))) |> 
   group_by(alpha, n) |> 
   summarise(passed = sum(is.na(p)), 
-            failed = (repeats - passed)/repeats, 
-            .groups = "drop") |> 
-  group_by(alpha) |> 
-  summarise(prop = cumsum(failed), 
-            .groups = "drop") |> 
-  mutate(n = as.integer(rep(n*2, times = l_a)))
+            failed = (repeats - passed)/repeats,
+            mean_diff = mean(mean_diff, na.rm = TRUE),
+            .groups = "drop")
 
 write_csv(x= seq_t_test_many_alphas_rope, file = here::here("sim_data/seq_t_test_many_alphas_rope.csv"))
+#############################################################################
+dat = list()
+
+#Using a Rope of size 1
+
+for (i in 1:l_a){
+  
+  dat[[i]] <- replicate(repeats, expr = get_mean_diff(sample_size = n, 
+                                                      alpha = alphas[i],
+                                                      break_loop = T, 
+                                                      mean_diff = 0, 
+                                                      use_rope = T, 
+                                                      margin = 1)) |>  
+    t() |> 
+    as_tibble(.name_repair = ~c("mean_diff", "p", "l_ci", "u_ci")) |> 
+    map_dfr(~unlist(.x)) |> 
+    mutate(alpha = as.factor(alphas[i]))
+  
+}
+seq_t_test_many_alphas_rope_1 <- dat |>
+  bind_rows() |> 
+  mutate(n = as.integer(rep(n*2, times = repeats * l_a))) |> 
+  group_by(alpha, n) |> 
+  summarise(passed = sum(is.na(p)), 
+            failed = (repeats - passed)/repeats,
+            mean_diff = mean(mean_diff, na.rm = TRUE),
+            .groups = "drop")
+
+
+
+write_csv(x= seq_t_test_many_alphas_rope_1, file = here::here("sim_data/seq_t_test_many_alphas_rope_1.csv"))
+
+###########################################################
+dat = list()
+
+margins = c(0, 0.1, 0.2, 0.4, 0.8)
+#Using a Rope of size 1
+
+for (m in 1:length(margins)){
+  
+  dat[[m]] <- replicate(repeats, expr = get_mean_diff(sample_size = n, 
+                                                      alpha = 0.05,
+                                                      break_loop = T, 
+                                                      mean_diff = 0, 
+                                                      use_rope = T, 
+                                                      margin = margins[m])) |>  
+    t() |> 
+    as_tibble(.name_repair = ~c("mean_diff", "p", "l_ci", "u_ci")) |> 
+    map_dfr(~unlist(.x)) |> 
+    mutate(margin = margins[m])
+  
+}
+seq_t_test_many_alphas_rope_m <- dat |>
+  bind_rows() |> 
+  mutate(n = as.integer(rep(n*2, times = repeats * l_a))) |> 
+  group_by(margin, n) |> 
+  summarise(passed = sum(is.na(p)), 
+            failed = (repeats - passed)/repeats,
+            mean_diff = mean(mean_diff, na.rm = TRUE),
+            .groups = "drop")
+
+
+
+write_csv(x= seq_t_test_many_alphas_rope_m, file = here::here("sim_data/seq_t_test_many_alphas_rope_m.csv"))

@@ -13,6 +13,7 @@ library(tidyverse)
 library(TOSTER)
 
 source(file = here::here("my-scripts", "tost_loop_functions.R"))
+source(file = here::here("my-scripts", "t_test_loop_functions.R"))
 ```
 
 ```{r, eval= TRUE}
@@ -21,6 +22,11 @@ p_vals_tost_no_break <- read_csv(file = here::here("./sim_data/p_vals_tost_no_br
 p_vals_tost_break_logn <- read_csv(file = here::here("./sim_data/p_vals_tost_break_logn.csv"))
 p_vals_tost_break_small_alpha <- read_csv(file = here::here("./sim_data/p_vals_tost_break_small_alpha.csv"))
 p_vals_tost_break_one_sample <- read_csv(file = here::here("./sim_data/p_vals_tost_break_one_sample.csv"))
+
+seq_t_test_many_alphas_rope <- read_csv(file = here::here("./sim_data/seq_t_test_many_alphas_rope.csv"))
+seq_t_test_many_alphas_rope_1 <- read_csv(file = here::here("./sim_data/seq_t_test_many_alphas_rope_1.csv"))
+
+seq_t_test_many_alphas_rope_m <- read_csv(file = here::here("./sim_data/seq_t_test_many_alphas_rope_m.csv"))
 ```
 
 ```{r}
@@ -30,8 +36,14 @@ l_n = length(n)
 n_log <- 10^(seq(1,4,.01))
 l_nlog = length(n_log)
 
-repeats = 1000
+alphas = c(0.05, 0.01, 0.005, 0.001, 0.0005)
+l_a = length(alphas)
 
+repeats = 1000
+```
+
+## Different sequential tests, with breaks, without breaks, different alphas, etc
+```{r}
 p_vals_tost_break_df <- p_vals_tost_break |> 
    summarise_t_test_loop(n = n, repeats = repeats)
 
@@ -48,8 +60,31 @@ p_vals_tost_break_one_sample_df <- p_vals_tost_break_one_sample |>
    summarise_t_test_loop(n = n, repeats = repeats)
 ```
 
+## ROPE Sequential Test
 ```{r}
+seq_t_test_many_alphas_rope_df <- seq_t_test_many_alphas_rope |> 
+  group_by(alpha) |> 
+  summarise(prop = cumsum(failed), 
+            .groups = "drop") |> 
+  mutate(n = as.integer(rep(n*2, times = l_a)))
 
+seq_t_test_many_alphas_rope_1_df <- seq_t_test_many_alphas_rope_1 |> 
+  group_by(alpha) |> 
+  summarise(prop = cumsum(failed), 
+            .groups = "drop") |> 
+  mutate(n = as.integer(rep(n*2, times = l_a)))
+```
+
+```{r}
+seq_t_test_many_alphas_rope_m_df <- seq_t_test_many_alphas_rope_m |> 
+  group_by(margin) |> 
+  summarise(prop = cumsum(failed), 
+            .groups = "drop") |> 
+  mutate(n = as.integer(rep(n*2, times = l_a)))
+```
+
+
+```{r}
 p_vals_tost_break_df |> 
   ggplot()+
   geom_line(aes(x = n, y =  prop ), size = 1, colour = "lightgrey")+
@@ -60,8 +95,76 @@ p_vals_tost_break_df |>
   scale_y_continuous("Proportation of Decisions")+
   theme_minimal()
 ```
+
+
+```{r}
+seq_t_test_many_alphas_rope |> 
+  na.omit() |> 
+  ggplot(aes(x = as.integer(n), y = mean_diff, colour = as.factor(alpha), group = alpha))+
+  geom_point(size = 1)+
+  geom_smooth(size = 1, se = F)+
+  scale_x_log10("N")+
+  scale_y_continuous("Mean Difference", limits = c(0,2))+
+  theme_minimal()+
+  ggtitle("Mean Difference from Sequential t-test with Rope at 0.5 Cohen's d")
+
+seq_t_test_many_alphas_rope_1 |> 
+  na.omit() |> 
+  ggplot(aes(x = as.integer(n), y = mean_diff, colour = as.factor(alpha), group = alpha))+
+  geom_point(size = 1)+
+  geom_smooth(size = 1, se = F)+
+  scale_x_log10("N")+
+  scale_y_continuous("Mean Difference", limits = c(0,2))+
+  theme_minimal()+
+  ggtitle("Mean Difference from Sequential t-test with Rope at 1 Cohen's d")
+```
+
+```{r}
+seq_t_test_many_alphas_rope_df |> 
+  na.omit() |> 
+  ggplot(aes(x = as.integer(n), y = prop, colour = as.factor(alpha), group = alpha))+
+  geom_line(size = 1)+
+  scale_x_log10("N")+
+  scale_y_continuous("False Positives", limits = 0:1)+
+  theme_minimal()+  
+  ggtitle("False Positives from Sequential t-test with Rope at 0.5 Cohen's d")
+
+seq_t_test_many_alphas_rope_1_df |> 
+  na.omit() |> 
+  ggplot(aes(x = as.integer(n), y = prop, colour = as.factor(alpha), group = alpha))+
+  geom_line(size = 1)+
+  scale_x_log10("N")+
+  scale_y_continuous("False Positives", limits = 0:1)+
+  theme_minimal()+
+  ggtitle("False Positives from Sequential t-test with Rope at 1 Cohen's d")
+```
+
 ```{r}
 
+seq_t_test_many_alphas_rope_m |> 
+  na.omit() |> 
+  ggplot(aes(x = as.integer(n), y = mean_diff, colour = as.factor(margin), group = margin))+
+  geom_point(size = 1)+
+  geom_smooth(size = 1, se = F)+
+  scale_x_log10("N")+
+  scale_y_continuous("Mean Difference", limits = c(0,2))+
+  theme_minimal()+
+  ggtitle("Mean Difference from Sequential t-test with Alpha at 0.05, at various ROPE margins")
+
+seq_t_test_many_alphas_rope_m_df |> 
+  na.omit() |> 
+  ggplot(aes(x = as.integer(n), y = prop, colour = as.factor(margin), group = margin))+
+  geom_line(size = 1)+
+  scale_x_log10("N")+
+  scale_y_continuous("False Positives", limits = 0:1)+
+  theme_minimal()+
+  ggtitle("False Positives from Sequential t-test with alpha of 0.05, at various ROPE margins")
+
+```
+
+
+
+```{r}
 p_vals_tost_break_one_sample_df |> 
   ggplot()+
   geom_line(aes(x = n, y =  prop ), size = 1, colour = "lightgrey")+
