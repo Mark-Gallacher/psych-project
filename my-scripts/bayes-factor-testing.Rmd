@@ -1,0 +1,26 @@
+---
+title: "bayes-factors"
+author: "Mark G"
+date: "2022-11-07"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(BayesFactor)
+```
+```{r}
+n = seq(5,5000, 5)
+mn = 0
+sd = 1
+
+t.test(rnorm(n[1], mn, sd), rnorm(n[1], mn, sd))
+```
+
+
+```{r}
+ttestBF(rnorm(n[1], mn, sd), rnorm(n[1], mn, sd))
+```

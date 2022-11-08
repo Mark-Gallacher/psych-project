@@ -217,7 +217,7 @@ ggplot(df, aes(x, y, colour = conds)) +
 
 ```{r}
 p_values <- array(NA, Nt)
-md_values <- array(NA, Nt) # eman difference values
+mn_values <- array(NA, Nt) # mean difference values
 
 for(t in 1:Nt){
   t_test_values <- t.test(cond1[,t], cond2[,t], var.equal = FALSE)
@@ -231,7 +231,7 @@ t_test_df <- tibble(
   mn_diff = mn_values
   )
 
-rope_noise <- quantile(mn_values[1:16]) # from 10-160 milliseconds - pre-stimulus
+rope_noise <- quantile(mn_values[1:16], probs = c(0.025, 0.975)) # from 10-160 milliseconds - pre-stimulus
 ```
 
 Plotting P-values

@@ -1,0 +1,119 @@
+---
+title: "parallel-comp-testing"
+author: "Mark G"
+date: "2022-11-07"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# groundhog::set.groundhog.folder("D:/Documents/Coding/R/")
+
+library(doParallel)
+library(foreach)
+library(groundhog)
+library(tidyverse)
+```
+
+```{r}
+cores <- ceiling(parallel::detectCores() * .9)
+
+registerDoParallel(cores = cores)
+
+```
+
+```{r}
+dat <- foreach::foreach(s = seq(5,5000, 5), .combine = "c") %dopar% {
+  
+  s1 = rnorm(s, mean = 0, sd = 1)
+  s2 = rnorm(s, mean = 0, sd = 1)
+  
+  p = t.test(s1, s2)$p.value
+  p
+}
+```
+
+```{r}
+
+get_mean_diff <- function(sample_size, 
+                          alpha = 0.05,
+                          break_loop = TRUE, 
+                          mean_diff = 0, 
+                          use_rope = FALSE, 
+                          margin = 0){
+  library(tidyverse)
+  
+  len_n <- length(sample_size)
+  
+  mean_diff_vector <- array(NA, dim = len_n)
+  p_vector <- array(NA, dim = len_n)
+  conf_vector <- array(NA, dim = c(len_n, 2))
+ 
+  p <- "p.value"
+  mean <- "estimate"
+  ci <- "conf.int"
+  
+  foreach::foreach (s = 1:len_n, .combine = cbind )%dopar%{
+    # generate sample
+    s1 = rnorm(sample_size[s], mean = 0, sd = 1)
+    s2 = rnorm(sample_size[s], mean = 0 + mean_diff, sd = 1)
+
+    # t test between two samples
+    t_test <- t.test(s1, s2, 
+                     alternative = "two.sided", 
+                     conf.level = 1 - alpha, 
+                     var.equal = FALSE)
+  
+    # check if p is below alpha, and if we want to break loop
+    if (t_test[[p]] < alpha & break_loop){
+      # find mean difference so we can check it is more than margin
+      mean_diff <- abs(t_test[[mean]][[1]] - t_test[[mean]][[2]])
+      
+      if(use_rope){ # check if we are using a rope
+        
+        if(mean_diff > margin){ # check if difference is bigger than rope
+          
+        p_vector[i] <- t_test[[p]]
+        mean_diff_vector[i] <- mean_diff
+        conf_vector[i, 1] <- t_test[[ci]][[1]]
+        conf_vector[i, 2] <- t_test[[ci]][[2]]
+        break
+        }else{
+          next 
+        }
+      }else{
+        p_vector[i] <- t_test[[p]]
+        mean_diff_vector[i] <- mean_diff
+        conf_vector[i, 1] <- t_test[[ci]][[1]]
+        conf_vector[i, 2] <- t_test[[ci]][[2]]
+        break
+        }
+    }
+    if (!break_loop){
+      p_vector[i] <- t_test[[p]]
+      mean_diff_vector[i] <- abs(t_test[[mean]][[1]] - t_test[[mean]][[2]])
+      conf_vector[i, 1] <- t_test[[ci]][[1]]
+      conf_vector[i, 2] <- t_test[[ci]][[2]]
+    }
+  }
+  
+ output <- mean_diff_vector |>
+    bind_cols(p_vector, conf_vector, .name_repair = ~ c("mean_diff","p", "l_ci", "u_ci")) 
+ 
+  return(output)
+}
+
+```
+
+
+```{r}
+get_mean_diff(sample_size = seq(5,1000,5), 
+              alpha = 0.05, 
+              break_loop = F, 
+              mean_diff = 0, 
+              use_rope = F)
+```
+
