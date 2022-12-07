@@ -138,10 +138,19 @@ for(T in 1:Nt){
 
 df <- tibble(x = rep(Xf, each = Nt),
              y = as.vector(resmat),
-             gamma = factor(rep(gsp, Nf)))
+             gamma = as.factor(rep(gsp, Nf)))
+
+
 ggplot(df, aes(x, y, group = gamma)) +
   geom_line(size = 1) +
-  # scale_colour_viridis_d(end = 0.95)
+  # scale_colour_viridis_d(guide = guide_coloursteps(barwidth = 20,
+  #                                                  barheight = .5,
+  #                                                  show.limits = T),
+  #                        # breaks = seq(0, 1, 0.1),
+  #                        # labels = c("", 0.2, "", 0.4, "", 0.6, "", 0.8, "", 1.0)
+  #                        )+
+  theme_minimal()+
+  theme(legend.position = "bottom")+
   facet_wrap(vars(gamma))
 ```
 ## Illustrate signals + noise
@@ -190,84 +199,197 @@ ggplot(df, aes(x, y, colour = conds)) +
 
 ```{r}
 # set.seed(666)
-Nt <- 50 # number of trials
+Nt <- 50
+Nts <- c(10,25,50,100,250,500) # number of trials
 gsp <- 0.7 # gamma spectral power
 outvar <- 1 # noise variance
-cond1 <- matrix(0, nrow = Nt, ncol = Nf)
-cond2 <- matrix(0, nrow = Nt, ncol = Nf)
-for(t in 1:Nt){
-cond2[t,] <- temp2 + one_over_f(gamma = gsp, Nf, outvar = outvar)
-cond1[t,] <- temp1 + one_over_f(gamma = gsp, Nf, outvar = outvar)  
-}
+
+dat = vector("list", length = length(Nt))
+
+for (i in 1:length(Nts)) {
+
+cond1 <- matrix(0, nrow = Nts[i], ncol = Nf)
+cond2 <- matrix(0, nrow = Nts[i], ncol = Nf)
+
+  for(t in 1:Nts[i]){
+    
+  cond2[t,] <- temp2 + one_over_f(gamma = gsp, Nf, outvar = outvar)
+  cond1[t,] <- temp1 + one_over_f(gamma = gsp, Nf, outvar = outvar)  
+  
+  }
+
 cond1_mn <- apply(cond1, 2, mean)
 cond2_mn <- apply(cond2, 2, mean)
 
-
-
-df <- tibble(x = rep(Xf,2),
+dat[[i]] <- tibble(x = rep(Xf,2),
              y = c(cond1_mn, cond2_mn),
-             conds = factor(rep(c("Condition 1", "Condition 2"), each = Nf)))
-ggplot(df, aes(x, y, colour = conds)) +
+             conds = factor(rep(c("Condition 1", "Condition 2"), each = Nf)), 
+             n_trial = Nts[i])
+
+}
+```
+
+
+```{r}
+  
+eeg_df <- dat |> 
+  bind_rows()
+  
+
+eeg_df |> 
+  ggplot(aes(x, y, colour = conds)) +
   geom_line() +
-  geom_vline(xintercept = true_onset)
+  geom_vline(xintercept = true_onset)+
+  facet_wrap(~n_trial, scales =  "free")+
+  theme_minimal()
 ```
 
 
 
 
 ```{r}
-p_values <- array(NA, Nt)
-mn_values <- array(NA, Nt) # mean difference values
+Nt <- 50
+Nts <- c(10,25,50,100,250,500) # number of trials
+gsp <- 0.7 # gamma spectral power
+outvar <- 1 # noise variance
 
-for(t in 1:Nt){
-  t_test_values <- t.test(cond1[,t], cond2[,t], var.equal = FALSE)
-  p_values[t] <- t_test_values[["p.value"]]
-  mn_values[t] <- abs(t_test_values[["estimate"]][[1]] - t_test_values[["estimate"]][[2]])
+alpha = 0.05
+
+t_dat <- vector("list", length = length(Nts))
+
+for (i in 1:length(Nts)){
+
+  p_values <- array(NA, Nf)
+  mn_values <- array(NA, Nf) # mean difference values
+  
+  cond1 <- matrix(0, nrow = Nts[i], ncol = Nf)
+  cond2 <- matrix(0, nrow = Nts[i], ncol = Nf)
+
+  for(t in 1:Nts[i]){
+      
+    cond2[t,] <- temp2 + one_over_f(gamma = gsp, Nf, outvar = outvar)
+    cond1[t,] <- temp1 + one_over_f(gamma = gsp, Nf, outvar = outvar)  
+  }
+  
+  for(x in 1:(Nf)){
+    t_test_values <- t.test(cond2[,x], cond1[,x], var.equal = FALSE)
+    p_values[x] <- t_test_values[["p.value"]]
+    mn_values[x] <- abs(t_test_values[["estimate"]][[1]] - t_test_values[["estimate"]][[2]])
+  }
+
+t_dat[[i]] <- tibble(
+  p = p_values,
+  time = Xf,
+  mn_diff = mn_values,
+  n_trials = Nts[i]
+  ) |>
+  mutate(sig = if_else(p < alpha/Nts[i], 0, NULL))
+
 }
 
-t_test_df <- tibble(
-  value = p_values, 
-  time = Xf[-1],
-  mn_diff = mn_values
-  )
+```
 
+
+```{r}
+t_df <- t_dat |> 
+  bind_rows()
+```
+
+
+```{r}
 rope_noise <- quantile(mn_values[1:16], probs = c(0.025, 0.975)) # from 10-160 milliseconds - pre-stimulus
 ```
 
+
 Plotting P-values
 ```{r}
-t_test_df |> 
-  ggplot(aes(x = time, y = -log(value)))+
-  geom_point(aes(colour = value < (0.05/ Nt)), show.legend = F, size = 2)+
+t_df |> 
+  ggplot(aes(x = time, y = -log(p)))+
+  geom_point(aes(colour = p < (alpha/ Nf)), show.legend = F, size = 2)+
   geom_line() +
-  geom_hline(aes(yintercept = -log(0.05/ Nt)))+
-  theme_minimal()
+  geom_hline(aes(yintercept = -log(alpha/ Nf)))+
+  theme_minimal()+
+  facet_wrap(~n_trials, scales = "free_y")
 
 
-t_test_df |> 
-  ggplot(aes(x = time, y = value))+
+t_df |> 
+  ggplot(aes(x = time, y = p))+
   geom_line()+
-  geom_point(aes(colour = value < (0.05/ Nt)), show.legend = F, size = 2)+
-  geom_hline(aes(yintercept = 0.05/ Nt))+
-  theme_minimal()
+  geom_point(aes(colour = p < (alpha/ Nf)), show.legend = F, size = 2)+
+  geom_hline(aes(yintercept = alpha/ Nf))+
+  theme_minimal()+
+  facet_wrap(~n_trials, scales = "free_y")
 ```
+
+```{r}
+t_df |> 
+  select(-sig) |> 
+  pivot_wider(names_from = time, values_from = c(p, mn_diff)) |> 
+  select(contains("p_")) |> 
+  rename_with(.cols = everything(), .fn =  ~ str_c(str_extract_all(.x, pattern = "\\d+"))) |> 
+  corrr::correlate(use = "pairwise.complete.obs", method = "pearson") |> 
+  corrr::autoplot(triangular = "full", method = "Identity")+
+  scale_x_discrete(labels = str_c(seq(0, 500, 50)), breaks = seq(0, 500, 50))+
+  scale_y_discrete(labels = str_c(seq(0, 500, 50)), breaks = seq(0, 500, 50))
+  
+t_df |> 
+  select(-sig) |> 
+  pivot_wider(names_from = time, values_from = c(p, mn_diff)) |> 
+  select(contains("mn_")) |> 
+  rename_with(.cols = everything(), .fn =  ~ str_c(str_extract_all(.x, pattern = "\\d+"))) |> 
+  corrr::correlate(use = "pairwise.complete.obs", method = "pearson") |> 
+  corrr::autoplot(triangular = "full", method = "Identity")+
+  scale_x_discrete(labels = str_c(seq(0, 500, 50)), breaks = seq(0, 500, 50))+
+  scale_y_discrete(labels = str_c(seq(0, 500, 50)), breaks = seq(0, 500, 50))
+```
+
 
 Plotting Mean Difference
 ```{r}
-t_test_df |> 
+t_df |> 
   ggplot(aes(x = time, y = mn_diff))+
   geom_line()+
-  geom_point(aes(colour = mn_diff > rope_noise[2]), size = 2, show.legend = F)+
+  geom_point(size = 2, show.legend = F, colour = "darkcyan")+
   theme_minimal()+
-  annotate("rect", 
-           xmin = 0, 
-           xmax = max(t_test_df$time), 
-           ymin = rope_noise[1], 
-           ymax = rope_noise[2], 
-           alpha = .2)
+  # annotate("rect", 
+  #          xmin = 0, 
+  #          xmax = max(t_test_df$time), 
+  #          ymin = rope_noise[1], 
+  #          ymax = rope_noise[2], 
+  #          alpha = .2)+
+  geom_line(aes(x = time, y = sig), size = 1.5)+
+  facet_wrap(~n_trials)
 
 
 ```
 
+
+```{r}
+cond1_df <- cond1[1:100, ] |> 
+  as_tibble(.name_repair = ~ paste0(Xf))|> 
+  pivot_longer(cols = everything(), names_to = "time", values_to = "milliv") |> 
+  mutate(trial = rep(1:100, times = Nf))
+
+
+cond2_df <- cond2[1:100, ] |> 
+  as_tibble(.name_repair = ~ paste0(Xf))|> 
+  pivot_longer(cols = everything(), names_to = "time", values_to = "milliv") |>   
+  mutate(trial = rep(1:100, times = Nf))
+
+cond_df <- bind_rows(cond1_df, cond2_df, .id = "cond") |> 
+  group_by(time, cond) |> 
+  mutate(mn = mean(milliv))
+```
+
+
+```{r}
+cond_df |> 
+  ggplot(aes(as.numeric(time), milliv, colour = as.factor(trial), group = trial))+
+  geom_line(size = .4, alpha = .4, show.legend = F)+
+  geom_line(aes(y = mn), size = 1, alpha = 1, colour = "slategray4")+
+  facet_grid(rows = vars(cond))+
+  scale_x_continuous("Time (ms)")+
+  theme_minimal()
+```
 
 

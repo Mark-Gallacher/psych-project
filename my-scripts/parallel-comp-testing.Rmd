@@ -19,7 +19,7 @@ library(tidyverse)
 ```
 
 ```{r}
-cores <- ceiling(parallel::detectCores() * .9)
+cores <- parallel::detectCores() - 2 
 
 registerDoParallel(cores = cores)
 
@@ -39,24 +39,16 @@ dat <- foreach::foreach(s = seq(5,5000, 5), .combine = "c") %dopar% {
 ```{r}
 
 get_mean_diff <- function(sample_size, 
-                          alpha = 0.05,
-                          break_loop = TRUE, 
-                          mean_diff = 0, 
-                          use_rope = FALSE, 
-                          margin = 0){
-  library(tidyverse)
+                          alpha = 0.05, 
+                          mean_diff = 0){
   
   len_n <- length(sample_size)
   
-  mean_diff_vector <- array(NA, dim = len_n)
-  p_vector <- array(NA, dim = len_n)
-  conf_vector <- array(NA, dim = c(len_n, 2))
- 
   p <- "p.value"
   mean <- "estimate"
   ci <- "conf.int"
   
-  foreach::foreach (s = 1:len_n, .combine = cbind )%dopar%{
+ output <-  foreach::foreach(s = 1:len_n, .combine = "rbind") %dopar%{
     # generate sample
     s1 = rnorm(sample_size[s], mean = 0, sd = 1)
     s2 = rnorm(sample_size[s], mean = 0 + mean_diff, sd = 1)
@@ -66,54 +58,49 @@ get_mean_diff <- function(sample_size,
                      alternative = "two.sided", 
                      conf.level = 1 - alpha, 
                      var.equal = FALSE)
-  
-    # check if p is below alpha, and if we want to break loop
-    if (t_test[[p]] < alpha & break_loop){
-      # find mean difference so we can check it is more than margin
-      mean_diff <- abs(t_test[[mean]][[1]] - t_test[[mean]][[2]])
+    
+    # finding the mean diff
+    mean_diff <- abs(t_test[[mean]][[1]] - t_test[[mean]][[2]])
+    
+    # combining output
+    c(alpha, sample_size[s], t_test[[p]], mean_diff, t_test[[ci]][[1]], t_test[[ci]][[2]]) 
       
-      if(use_rope){ # check if we are using a rope
-        
-        if(mean_diff > margin){ # check if difference is bigger than rope
-          
-        p_vector[i] <- t_test[[p]]
-        mean_diff_vector[i] <- mean_diff
-        conf_vector[i, 1] <- t_test[[ci]][[1]]
-        conf_vector[i, 2] <- t_test[[ci]][[2]]
-        break
-        }else{
-          next 
-        }
-      }else{
-        p_vector[i] <- t_test[[p]]
-        mean_diff_vector[i] <- mean_diff
-        conf_vector[i, 1] <- t_test[[ci]][[1]]
-        conf_vector[i, 2] <- t_test[[ci]][[2]]
-        break
-        }
-    }
-    if (!break_loop){
-      p_vector[i] <- t_test[[p]]
-      mean_diff_vector[i] <- abs(t_test[[mean]][[1]] - t_test[[mean]][[2]])
-      conf_vector[i, 1] <- t_test[[ci]][[1]]
-      conf_vector[i, 2] <- t_test[[ci]][[2]]
-    }
   }
   
- output <- mean_diff_vector |>
-    bind_cols(p_vector, conf_vector, .name_repair = ~ c("mean_diff","p", "l_ci", "u_ci")) 
- 
-  return(output)
+  output |> 
+    tibble::as_tibble(.name_repair = ~ c("alpha", "n", "p", "mean_diff", "l_ci", "u_ci"))
 }
 
 ```
 
 
 ```{r}
-get_mean_diff(sample_size = seq(5,1000,5), 
-              alpha = 0.05, 
-              break_loop = F, 
-              mean_diff = 0, 
-              use_rope = F)
+ttest_fast_loop(sample_size = seq(5,5000,5), 
+                alpha = 0.05,
+                mean_diff = 0)
 ```
+
+```{r}
+
+sample_size = seq(5,5000,5)
+
+alphas = c(0.05, 0.01, 0.005, 0.001, 0.0005)
+
+dat = vector(mode = "list", length = length(alphas))
+
+repeats = 10
+
+for (a in 1:length(alphas)){
+  
+  dat[[a]] <- replicate(repeats, expr = ttest_fast_loop(sample_size = sample_size, alpha = alphas[a])) |>
+    t() |> 
+    tibble::as_tibble(.name_repair = ~ c("alpha", "n", "p", "mean_diff", "l_ci", "u_ci")) |> 
+    map_dfr(~unlist(.x))
+  
+}
+
+dat |> 
+  bind_rows()
+```
+
 

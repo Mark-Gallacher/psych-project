@@ -1,0 +1,187 @@
+---
+title: "Brms-priors"
+author: "Mark G"
+date: "2022-11-16"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(brms)
+library(tidyverse)
+library(tidybayes)
+library(doParallel)
+library(foreach)
+library(ggdist)
+```
+
+
+```{r}
+cores <- parallel::detectCores() - 2 
+
+# RcppParallel::setThreadOptions(numThreads = cores)
+doParallel::registerDoParallel(cores = cores)
+```
+
+```{r}
+sample_size = c(10, 50, 100, 500, 1000, 5000, 10000)
+
+n_chains <- 4
+n_iter <- 10000
+n_warmup <- 1000
+```
+
+```{r}
+get_posterior <- function(sample_size, prior, mean_diff = 0, n_chains = 4, n_iter = 4000, n_warmup = 1000, cores = 1){ 
+
+models <- foreach::foreach(n = sample_size) %dopar% {
+
+# creating data using normal distribution
+ dat <- dplyr::tibble(
+    x = c(rnorm(n), rnorm(n, mean_diff)), 
+    y = rep(c("A", "B"), each = n))
+
+# Bayesian Analysis, using defined prior and sample sizes
+ brms::brm(
+    x ~ y, 
+    data = dat, 
+    family = "gaussian", 
+    prior = prior, 
+    chains = n_chains,
+    iter = n_iter, 
+    warmup = n_warmup, 
+    threads = cores
+    )
+}
+
+# Using tidybayes to extract the posterior distribution of the mean values
+output <- vector("list", length = length(models))
+
+for(i in 1:length(models)){
+  output[[i]] <- models[[i]] |> 
+    tidybayes::spread_draws(b_yB)
+}
+
+output <- output |> 
+  bind_rows() |> 
+  mutate(n = rep(sample_size, each = n_chains * (n_iter - n_warmup)))
+
+return(output)
+
+}
+```
+
+```{r}
+p1 <- set_prior("normal(0, 0.1)")
+p2 <- set_prior("uniform(-5,5)")
+p3 <- set_prior("normal(1, 0.1)")
+```
+
+```{r, eval=F}
+pr_list <- list(p1, p2, p3)
+models <- vector("list", length(pr_list))
+
+for(i in 1:length(pr_list)){
+  
+  models[[i]] <- get_posterior(
+     sample_size = sample_size, 
+     prior = pr_list[[i]], 
+     mean_diff = 0, 
+     n_chains = 4, 
+     n_iter = n_iter, 
+     n_warmup = n_warmup, 
+     cores = cores
+    )
+  
+}
+```
+
+```{r}
+# write_csv(models_df, file = here::here("sim_data", "bayes_models.csv"))
+models_df <- read_csv(here::here("sim_data", "bayes_models.csv"))
+```
+
+
+```{r, fig.width= 10, fig.height=10}
+# models_df <- models |>
+#   bind_rows() |> 
+#   mutate(prior = rep(c("p1", "p2", "p3"), each = n_chains * (n_iter - n_warmup) * length(sample_size))) 
+
+models_df |> 
+  ggplot(aes(b_yB))+
+  geom_density(aes(colour = as.factor(prior), fill = as.factor(prior)), size = .1, alpha = .3)+
+  scale_x_continuous("Mean Difference", limits = c(-1, 1.5))+
+  facet_grid(rows = vars(n), scales = "free_y")+
+  theme_minimal()
+
+```
+
+```{r}
+n = 10000
+mean_diff = 0
+
+p1 <- set_prior("normal(0, 0.1)")
+p2 <- set_prior("uniform(-5,5)")
+
+# creating data using normal distribution
+bf_dat <- dplyr::tibble(
+    x = c(rnorm(n), rnorm(n, mean_diff)), 
+    y = rep(c("A", "B"), each = n))
+
+# Bayesian Analysis, using defined prior and sample sizes
+bf_model1 <- brms::brm(
+    x ~ y, 
+    data = bf_dat, 
+    family = "gaussian", 
+    prior = p1, 
+    chains = n_chains,
+    iter = n_iter, 
+    warmup = n_warmup, 
+    threads = cores, 
+    save_pars = save_pars(all=TRUE)
+    )
+
+bf_model2 <- brms::brm(
+    x ~ y, 
+    data = bf_dat, 
+    family = "gaussian", 
+    prior = p2, 
+    chains = n_chains,
+    iter = n_iter, 
+    warmup = n_warmup, 
+    threads = cores, 
+    save_pars = save_pars(all=TRUE)
+    )
+
+
+bf_model3 <- brms::brm(
+    x ~ y, 
+    data = bf_dat, 
+    family = "gaussian", 
+    prior = p3, 
+    chains = n_chains,
+    iter = n_iter, 
+    warmup = n_warmup, 
+    threads = cores, 
+    save_pars = save_pars(all=TRUE)
+    )
+
+bf_12 <- bayes_factor(bf_model1, bf_model2)
+bf_23 <- bayes_factor(bf_model2, bf_model3)
+bf_13 <- bayes_factor(bf_model1, bf_model3)
+
+bf_list <- c(bf_12[1], bf_23[1], bf_13[1])
+names(bf_list) <- c("12", "23", "13")
+
+# is.brmsfit(bf_model1)
+# is.brmsfit(bf_model2)
+# is.brmsfit(bf_model3)
+
+```
+
+
+
+

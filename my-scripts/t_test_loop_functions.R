@@ -44,6 +44,8 @@ get_pvals_one_sample <- function(sample_size, break_loop = TRUE, alpha = 0.05){
   return(p_val_vector)
 }
 
+# More complex function can stop at significant results, 
+# use a ROPE and define a rope
 get_mean_diff <- function(sample_size, 
                           alpha = 0.05,
                           break_loop = TRUE, 
@@ -107,6 +109,40 @@ get_mean_diff <- function(sample_size,
   return(output)
 }
 
+ttest_fast_loop <- function(sample_size, 
+                          alpha = 0.05, 
+                          mean_diff = 0){
+  
+  len_n <- length(sample_size)
+  
+  p <- "p.value"
+  mean <- "estimate"
+  ci <- "conf.int"
+  
+  output <-  foreach::foreach (s = 1:len_n, .combine = "rbind") %dopar%{
+    # generate sample
+    s1 = rnorm(sample_size[s], mean = 0, sd = 1)
+    s2 = rnorm(sample_size[s], mean = 0 + mean_diff, sd = 1)
+    
+    # t test between two samples
+    t_test <- t.test(s1, s2, 
+                     alternative = "two.sided", 
+                     conf.level = 1 - alpha, 
+                     var.equal = FALSE)
+    
+    # finding the mean diff
+    mean_diff <- abs(t_test[[mean]][[1]] - t_test[[mean]][[2]])
+    
+    # combining output
+    c(alpha, sample_size[s], t_test[[p]], mean_diff, t_test[[ci]][[1]], t_test[[ci]][[2]]) 
+    
+  }
+  
+  output |> 
+    tibble::as_tibble(.name_repair = ~ c("alpha", "n", "p", "mean_diff", "l_ci", "u_ci"))
+}
+
+
 summarise_t_test_loop <- function(df, n, repeats){
   
   result <- df |> 
@@ -121,6 +157,31 @@ summarise_t_test_loop <- function(df, n, repeats){
   
   return(result)
   
+}
+
+
+bf_ttest_fast_loop <- function(sample_size, mean_diff = 0, nullInterval = NULL){
+  
+  len_n <- length(sample_size)
+  
+  output <-  foreach::foreach (s = 1:len_n, .combine = "rbind") %dopar%{
+    # generate sample
+    s1 = rnorm(sample_size[s], mean = 0, sd = 1)
+    s2 = rnorm(sample_size[s], mean = 0 + mean_diff, sd = 1)
+    
+    # t test between two samples
+    bf <- BayesFactor::ttestBF(s1, s2, nullInterval = nullInterval)
+    
+    # finding the mean diff
+    mean_diff <- mean(s1) - mean(s2)
+    
+    # combining output
+    c(sample_size[s], as.vector(bf)[[1]],  mean_diff) 
+    
+  }
+  
+  output |> 
+    tibble::as_tibble(.name_repair = ~ c("n", "bf", "mean_diff"))
 }
 #################################
 #################################
