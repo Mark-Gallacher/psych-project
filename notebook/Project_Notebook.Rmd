@@ -31,7 +31,7 @@ source(here::here("my-scripts", "pwr_calc_functions.R"))
 
 ```{r}
 # Sample Size
-sample_size <- c(5, seq(1, 9.5, 0.5) %o% 10^(1:3))
+sample_size <- c(5, seq(1, 9.5, 0.5) %o% 10^(1:3), 10^4)
 l_sample <- length(sample_size)
 
 # Effect Size (Cohen's d) - One default value, and One list
@@ -237,7 +237,7 @@ es_dyn_a_loop |>
   geom_line(alpha = 0.5, size = 1.5)+
   geom_point(alpha = 0.5, size = 1.5)+
   scale_x_log10(name = "Sample Size")+
-  scale_y_continuous(name = "Alpha")+
+  scale_y_continuous(name = "Effect Size")+
   guides(colour = guide_legend(title = "Power"))+
   ggtitle("Dynamic Alpha Levels")+
   theme_minimal()+
@@ -478,7 +478,7 @@ knitr::kable(x = head(tost_pval_df, n = 10))
 #### PLotting Cohen's d vs p-values with various sample sizes
 ```{r}
 tost_pval_df |> 
-  ggplot(aes(x = diff/sd, y = p, colour = n, linetype = t))+
+  ggplot(aes(x = diff/sd, y = p, colour = t, linetype = n))+
   geom_line(size = 1.2, alpha = 0.7)+
   geom_hline(yintercept = 0.05)+
   ggtitle("TOST and t-test, p-value at different mean differences (SD = 10) at \nThree sample sizes (25,50,100)")+

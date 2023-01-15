@@ -1,0 +1,884 @@
+#License: USC-RL v1.0
+#The Software is made available for academic or non-commercial purposes only. The license is for
+#a copy of the program for an unlimited term. Individuals requesting a license for commercial use must pay for a commercial license.
+# USC Stevens Institute for Innovation University of Southern California
+#1150 S. Olive Street, Suite 2300
+#Los Angeles, CA 90115, USA
+#ATTN: Accounting
+#DISCLAIMER.  USC MAKES NO EXPRESS OR IMPLIED WARRANTIES, EITHER IN FACT OR BY
+#OPERATION OF LAW, BY STATUTE OR OTHERWISE, AND USC SPECIFICALLY AND EXPRESSLY
+#DISCLAIMS ANY EXPRESS OR IMPLIED WARRANTY OF MERCHANTABILITY OR FITNESS FOR A
+#PARTICULAR PURPOSE, VALIDITY OF THE SOFTWARE OR ANY OTHER INTELLECTUAL PROPERTY
+#RIGHTS OR NON-INFRINGEMENT OF THE INTELLECTUAL PROPERTY OR OTHER RIGHTS OF ANY
+#THIRD PARTY. SOFTWARE IS MADE AVAILABLE AS-IS.
+#LIMITATION OF LIABILITY.  TO THE MAXIMUM EXTENT PERMITTED BY LAW, IN NO EVENT WILL
+#USC BE LIABLE TO ANY USER OF THIS CODE FOR ANY INCIDENTAL, CONSEQUENTIAL, EXEMPLARY
+#OR PUNITIVE DAMAGES OF ANY KIND, LOST GOODWILL, LOST PROFITS, LOST BUSINESS AND/OR
+#ANY INDIRECT ECONOMIC DAMAGES WHATSOEVER, REGARDLESS OF WHETHER SUCH DAMAGES
+#ARISE FROM CLAIMS BASED UPON CONTRACT, NEGLIGENCE, TORT (INCLUDING STRICT LIABILITY
+#OR OTHER LEGAL THEORY), A BREACH OF ANY WARRANTY OR TERM OF THIS AGREEMENT, AND
+#REGARDLESS OF WHETHER USC WAS ADVISED OR HAD REASON TO KNOW OF THE POSSIBILITY OF
+#INCURRING SUCH DAMAGES IN ADVANCE.
+#For commercial license pricing and annual commercial update and support pricing, please
+#contact:
+#<Licensing Associate Name>
+#USC Stevens Institute for Innovation
+#University of Southern California
+#1150 S. Olive Street, Suite 2300
+#Los Angeles, CA 90015, USA
+#Tel: <Licensing Associate phone number>
+#Fax: +1 213-821-5001
+#Email:
+#<Licensing Associate Email>
+#and cc to:
+#accounting@stevens.usc.edu
+
+
+
+#  Last update:
+#  May, 2018
+
+onesampb<-function(x,est=onestep,alpha=.05,nboot=2000,nv=0,null.value=NULL,...){
+#
+#   Compute a bootstrap, .95 confidence interval for the
+#   measure of location corresponding to the argument est.
+#   By default, a one-step
+#   M-estimator of location based on Huber's Psi is used.
+#   The default number of bootstrap samples is nboot=500
+#
+#    nv=null value when  computing a p-value
+#
+if(!is.null(null.value))nv=null.value
+x=elimna(x)
+data<-matrix(sample(x,size=length(x)*nboot,replace=TRUE),nrow=nboot)
+bvec<-apply(data,1,est,...)
+bvec<-sort(bvec)
+low<-round((alpha/2)*nboot)
+up<-nboot-low
+low<-low+1
+pv=mean(bvec>nv)+.5*mean(bvec==nv)
+pv=2*min(c(pv,1-pv))
+estimate=est(x,...)
+list(ci=c(bvec[low],bvec[up]),n=length(x),estimate=estimate,p.value=pv)
+}
+
+elimna<-function(m){
+#
+# remove any rows of data having missing values
+#
+DONE=FALSE
+if(is.list(m) && is.matrix(m)){
+z=pool.a.list(m)
+m=matrix(z,ncol=ncol(m))
+DONE=TRUE
+}
+if(!DONE){
+if(is.list(m) && is.matrix(m[[1]])){
+for(j in 1:length(m))m[[j]]=na.omit(m[[j]])
+e=m
+DONE=TRUE
+}}
+if(!DONE){
+if(is.list(m) && is.null(dim(m))){ #!is.matrix(m))
+for(j in 1:length(m))m[[j]]=as.vector(na.omit(m[[j]]))
+e=m
+DONE=TRUE
+}}
+if(!DONE){
+#if(!is.list(m)){
+#if(is.null(dim(m)))
+m<-as.matrix(m)
+ikeep<-c(1:nrow(m))
+for(i in 1:nrow(m))if(sum(is.na(m[i,])>=1))ikeep[i]<-0
+e<-m[ikeep[ikeep>=1],]
+#}
+}
+e
+}
+
+onestep<-function(x,bend=1.28,na.rm=FALSE,MED=TRUE){
+#
+#  Compute one-step M-estimator of location using Huber's Psi.
+#  The default bending constant is 1.28
+#
+#  MED=TRUE: initial estimate is the median
+#  Otherwise use modified one-step M-estimator
+#
+if(na.rm)x<-x[!is.na(x)]
+if(MED)init.loc=median(x)
+if(!MED)init.loc=mom(x,bend=bend)
+y<-(x-init.loc)/mad(x)  #mad in splus is madn in the book.
+A<-sum(hpsi(y,bend))
+B<-length(x[abs(y)<=bend])
+onestep<-median(x)+mad(x)*A/B
+onestep
+}
+
+hpsi<-function(x,bend=1.28){
+#
+#   Evaluate Huber`s Psi function for each value in the vector x
+#   The bending constant defaults to 1.28.
+#
+hpsi<-ifelse(abs(x)<=bend,x,bend*sign(x))
+hpsi
+}
+
+mom<-function(x,bend=2.24,na.rm=TRUE){
+#
+#  Compute MOM-estimator of location.
+#  The default bending constant is 2.24
+#
+if(na.rm)x<-x[!is.na(x)] #Remove missing values
+flag1<-(x>median(x)+bend*mad(x))
+flag2<-(x<median(x)-bend*mad(x))
+flag<-rep(T,length(x))
+flag[flag1]<-F
+flag[flag2]<-F
+mom<-mean(x[flag])
+mom
+}
+
+hd<-function(x,q=.5,na.rm=TRUE,STAND=NULL){
+#
+#  Compute the Harrell-Davis estimate of the qth quantile
+#
+#  The vector x contains the data,
+#  and the desired quantile is q
+#  The default value for q is .5.
+#
+if(na.rm)x=elimna(x)
+n<-length(x)
+m1<-(n+1)*q
+m2<-(n+1)*(1-q)
+vec<-seq(along=x)
+w<-pbeta(vec/n,m1,m2)-pbeta((vec-1)/n,m1,m2)  # W sub i values
+y<-sort(x)
+hd<-sum(w*y)
+hd
+}
+
+permg<-function(x,y,alpha=.05,est=mean,nboot=1000){
+#
+# Do a two-sample permutation test based on means or any
+# other measure of location or scale indicated by the
+# argument est.
+#
+# The default number of permutations is nboot=1000
+#
+x<-x[!is.na(x)]
+y<-y[!is.na(y)]
+xx<-c(x,y)
+dif<-est(x)-est(y)
+vec<-c(1:length(xx))
+v1<-length(x)+1
+difb<-NA
+temp2<-NA
+for(i in 1:nboot){
+data <- sample(xx, size = length(xx), replace = FALSE)
+temp1<-est(data[c(1:length(x))])
+temp2<-est(data[c(v1:length(xx))])
+difb[i]<-temp1-temp2
+}
+difb<-sort(difb)
+icl<-floor((alpha/2)*nboot+.5)
+icu<-floor((1-alpha/2)*nboot+.5)
+reject<-"no"
+if(dif>=difb[icu] || dif <=difb[icl])reject<-"yes"
+list(dif=dif,lower=difb[icl],upper=difb[icu],reject=reject)
+}
+
+pb2gen<-function(x,y,alpha=.05,nboot=2000,est=onestep,...){
+#
+#   Compute a bootstrap confidence interval for the
+#   the difference between any two parameters corresponding to
+#   independent groups.
+#   By default, M-estimators are compared.
+#   Setting est=mean, for example, will result in a percentile
+#   bootstrap confidence interval for the difference between means.
+#   Setting est=onestep will compare M-estimators of location.
+#   The default number of bootstrap samples is nboot=2000
+#
+x<-x[!is.na(x)] # Remove any missing values in x
+y<-y[!is.na(y)] # Remove any missing values in y
+datax<-matrix(sample(x,size=length(x)*nboot,replace=TRUE),nrow=nboot)
+datay<-matrix(sample(y,size=length(y)*nboot,replace=TRUE),nrow=nboot)
+bvecx<-apply(datax,1,est,...)
+bvecy<-apply(datay,1,est,...)
+bvec<-sort(bvecx-bvecy)
+low<-round((alpha/2)*nboot)+1
+up<-nboot-low
+temp<-sum(bvec<0)/nboot+sum(bvec==0)/(2*nboot)
+sig.level<-2*(min(temp,1-temp))
+se<-var(bvec)
+list(est.1=est(x,...),est.2=est(y,...),est.dif=est(x,...)-est(y,...),ci=c(bvec[low],bvec[up]),p.value=sig.level,sq.se=se,n1=length(x),n2=length(y))
+}
+
+trimci<-function(x,tr=.2,alpha=.05,null.value=0,pr=TRUE,nullval=NULL){
+#
+#  Compute a 1-alpha confidence interval for the trimmed mean
+#
+#  The default amount of trimming is tr=.2
+#
+if(pr){
+print("The p-value returned by this function is based on the")
+print("null value specified by the argument null.value, which defaults to 0")
+print('To get a measure of effect size using a Winsorized measure of scale,  use trimciv2')
+}
+if(!is.null(nullval))null.value=nullval
+x<-elimna(x)
+se<-sqrt(winvar(x,tr))/((1-2*tr)*sqrt(length(x)))
+trimci<-vector(mode="numeric",length=2)
+df<-length(x)-2*floor(tr*length(x))-1
+trimci[1]<-mean(x,tr)-qt(1-alpha/2,df)*se
+trimci[2]<-mean(x,tr)+qt(1-alpha/2,df)*se
+test<-(mean(x,tr)-null.value)/se
+sig<-2*(1-pt(abs(test),df))
+list(ci=trimci,estimate=mean(x,tr),test.stat=test,se=se,p.value=sig,n=length(x))
+}
+
+yuenbt<-function(x,y,tr=.2,alpha=.05,nboot=599,side=TRUE,nullval=0){
+#
+#  Compute a 1-alpha confidence interval for the difference between
+#  the trimmed means corresponding to two independent groups.
+#  The bootstrap-t method is used.
+#
+#  The default amount of trimming is tr=.2
+#  side=T indicates two-sided method using absolute value of the
+#  test statistics within the bootstrap; otherwise the equal-tailed method
+#  is used.
+#
+#  NOTE: p-value computed only when side=T
+#
+#  This function uses trimse.
+#
+side<-as.logical(side)
+p.value<-NA
+yuenbt<-vector(mode="numeric",length=2)
+x<-x[!is.na(x)]  # Remove missing values in x
+y<-y[!is.na(y)]  # Remove missing values in y
+xcen<-x-mean(x,tr)
+ycen<-y-mean(y,tr)
+test<-(mean(x,tr)-mean(y,tr))/sqrt(trimse(x,tr=tr)^2+trimse(y,tr=tr)^2)
+datax<-matrix(sample(xcen,size=length(x)*nboot,replace=TRUE),nrow=nboot)
+datay<-matrix(sample(ycen,size=length(y)*nboot,replace=TRUE),nrow=nboot)
+top<-apply(datax,1,mean,tr)-apply(datay,1,mean,tr)
+botx<-apply(datax,1,trimse,tr)
+boty<-apply(datay,1,trimse,tr)
+tval<-top/sqrt(botx^2+boty^2)
+if(side)tval<-abs(tval)
+tval<-sort(tval)
+icrit<-floor((1-alpha)*nboot+.5)
+ibot<-floor(alpha*nboot/2+.5)
+itop<-floor((1-alpha/2)*nboot+.5)
+se<-sqrt((trimse(x,tr))^2+(trimse(y,tr))^2)
+yuenbt[1]<-mean(x,tr)-mean(y,tr)-tval[itop]*se
+yuenbt[2]<-mean(x,tr)-mean(y,tr)-tval[ibot]*se
+if(side){
+yuenbt[1]<-mean(x,tr)-mean(y,tr)-tval[icrit]*se
+yuenbt[2]<-mean(x,tr)-mean(y,tr)+tval[icrit]*se
+p.value<-(sum(abs(test)<=abs(tval)))/nboot
+}
+list(ci=yuenbt,test.stat=test,p.value=p.value,est.1=mean(x,tr),est.2=mean(y,tr),est.dif=mean(x,tr)-mean(y,tr),
+n1=length(x),n2=length(y))
+}
+
+trimse<-function(x,tr=.2,na.rm=FALSE){
+#
+#  Estimate the standard error of the gamma trimmed mean
+#  The default amount of trimming is tr=.2.
+#
+if(na.rm)x<-x[!is.na(x)]
+trimse<-sqrt(winvar(x,tr))/((1-2*tr)*sqrt(length(x)))
+trimse
+}
+
+winvar<-function(x,tr=.2,na.rm=FALSE,STAND=NULL){
+#
+#  Compute the gamma Winsorized variance for the data in the vector x.
+#  tr is the amount of Winsorization which defaults to .2.
+#
+remx=x
+x<-x[!is.na(x)]
+y<-sort(x)
+n<-length(x)
+ibot<-floor(tr*n)+1
+itop<-length(x)-ibot+1
+xbot<-y[ibot]
+xtop<-y[itop]
+y<-ifelse(y<=xbot,xbot,y)
+y<-ifelse(y>=xtop,xtop,y)
+wv<-var(y)
+if(!na.rm)if(sum(is.na(remx)>0))wv=NA
+wv
+}
+
+yuen<-function(x,y=NULL,tr=.2,alpha=.05){
+#
+#  Perform Yuen's test for trimmed means on the data in x and y.
+#  The default amount of trimming is 20%
+#  Missing values (values stored as NA) are automatically removed.
+#
+#  A confidence interval for the trimmed mean of x minus the
+#  the trimmed mean of y is computed and returned in yuen$ci.
+#  The p-value is returned in yuen$p.value
+#
+#  x, y: The data for the two groups are stored in x and y
+#  tr=.2: indicates that the default amount of trimming is .2
+#         tr=0 results in using the sample mean
+#
+#  The function returns both a confidence interval and a p-value.
+#
+#  For an omnibus test with more than two independent groups,
+#  use t1way.
+#  This function uses winvar from chapter 2.
+#
+if(is.null(y)){
+if(is.matrix(x) || is.data.frame(x)){
+y=x[,2]
+x=x[,1]
+}
+if(is.list(x)){
+y=x[[2]]
+x=x[[1]]
+}
+}
+if(tr==.5)stop("Using tr=.5 is not allowed; use a method designed for medians")
+if(tr>.25)print("Warning: with tr>.25 type I error control might be poor")
+x<-x[!is.na(x)]  # Remove any missing values in x
+y<-y[!is.na(y)]  # Remove any missing values in y
+h1<-length(x)-2*floor(tr*length(x))
+h2<-length(y)-2*floor(tr*length(y))
+q1<-(length(x)-1)*winvar(x,tr)/(h1*(h1-1))
+q2<-(length(y)-1)*winvar(y,tr)/(h2*(h2-1))
+df<-(q1+q2)^2/((q1^2/(h1-1))+(q2^2/(h2-1)))
+crit<-qt(1-alpha/2,df)
+dif<-mean(x,tr)-mean(y,tr)
+low<-dif-crit*sqrt(q1+q2)
+up<-dif+crit*sqrt(q1+q2)
+test<-abs(dif/sqrt(q1+q2))
+yuen<-2*(1-pt(test,df))
+list(n1=length(x),n2=length(y),est.1=mean(x,tr),est.2=mean(y,tr),ci=c(low,up),p.value=yuen,dif=dif,se=sqrt(q1+q2),teststat=test,crit=crit,df=df)
+}
+
+yuend<-function(x,y,tr=.2,alpha=.05){
+#
+#  Compare the trimmed means of two dependent random variables
+#  using the data in x and y.
+#  The default amount of trimming is 20%
+#
+#  Any pair with a missing value is eliminated
+#  The function rm2miss allows missing values.
+#
+#  A confidence interval for the trimmed mean of x minus the
+#  the trimmed mean of y is computed and returned in yuend$ci.
+#  The significance level is returned in yuend$p.value
+#
+#  For inferences based on difference scores, use trimci
+#
+if(length(x)!=length(y))stop("The number of observations must be equal")
+m<-cbind(x,y)
+m<-elimna(m)
+x<-m[,1]
+y<-m[,2]
+h1<-length(x)-2*floor(tr*length(x))
+q1<-(length(x)-1)*winvar(x,tr)
+q2<-(length(y)-1)*winvar(y,tr)
+q3<-(length(x)-1)*wincor(x,y,tr)$cov
+df<-h1-1
+se<-sqrt((q1+q2-2*q3)/(h1*(h1-1)))
+crit<-qt(1-alpha/2,df)
+dif<-mean(x,tr)-mean(y,tr)
+low<-dif-crit*se
+up<-dif+crit*se
+test<-dif/se
+yuend<-2*(1-pt(abs(test),df))
+list(ci=c(low,up),p.value=yuend,est1=mean(x,tr),est2=mean(y,tr),dif=dif,se=se,teststat=test,n=length(x),df=df)
+}
+
+ydbt<-function(x,y,tr=.2,alpha=.05,nboot=599,side=TRUE){
+#
+#   Using the bootstrap-t method,
+#   compute a .95 confidence interval for the difference between
+#   the marginal trimmed means of paired data.
+#   By default, 20% trimming is used with B=599 bootstrap samples.
+#
+#   side=F returns equal-tailed ci (no p value returned)
+#   side=T returns symmetric ci.
+#
+side<-as.logical(side)
+if(length(x)!=length(y))stop("Must have equal sample sizes.")
+m<-cbind(x,y)
+m<-elimna(m)
+x<-m[,1]
+y<-m[,2]
+if(sum(c(!is.na(x),!is.na(y)))!=(length(x)+length(y)))stop("Missing values are not allowed.")
+data<-matrix(sample(length(y),size=length(y)*nboot,replace=TRUE),nrow=nboot)
+xcen<-x-mean(x,tr)
+ycen<-y-mean(y,tr)
+bvec<-apply(data,1,tsub,xcen,ycen,tr)
+# bvec is a 1 by nboot matrix containing the bootstrap test statistics.
+dotest=yuend(x,y,tr=tr)
+estse<-dotest$se
+p.value=NULL
+dif<-mean(x,tr)-mean(y,tr)
+if(!side){
+ilow<-round((alpha/2)*nboot)
+ihi<-nboot-ilow
+bsort<-sort(bvec)
+ci<-0
+ci[1]<-dif-bsort[ihi]*estse
+ci[2]<-dif-bsort[ilow+1]*estse
+}
+if(side){
+bsort<-sort(abs(bvec))
+ic<-round((1-alpha)*nboot)
+ci<-0
+ci[1]<-dif-bsort[ic]*estse
+ci[2]<-dif+bsort[ic]*estse
+p.value<-(sum(abs(dotest$teststat)<=abs(bvec)))/nboot
+}
+list(ci=ci,dif=dif,p.value=p.value)
+}
+
+wincov<-function(m,tr=.2){
+m=winall(m,tr=tr)$cov
+m
+}
+
+winall<-function(m,tr=.2){
+#
+#    Compute the Winsorized correlation and covariance matrix for the
+#    data in the n by p matrix m.
+#
+#    This function also returns the two-sided significance level
+#
+if(is.data.frame(m))m=as.matrix(m)
+if(!is.matrix(m))stop("The data must be stored in a n by p matrix")
+wcor<-matrix(1,ncol(m),ncol(m))
+wcov<-matrix(0,ncol(m),ncol(m))
+siglevel<-matrix(NA,ncol(m),ncol(m))
+for (i in 1:ncol(m)){
+ip<-i
+for (j in ip:ncol(m)){
+val<-wincor(m[,i],m[,j],tr)
+wcor[i,j]<-val$cor
+wcor[j,i]<-wcor[i,j]
+if(i==j)wcor[i,j]<-1
+wcov[i,j]<-val$cov
+wcov[j,i]<-wcov[i,j]
+if(i!=j){
+siglevel[i,j]<-val$p.value
+siglevel[j,i]<-siglevel[i,j]
+}
+}
+}
+cent=apply(m,2,mean,tr)
+list(cor=wcor,cov=wcov,center=cent,p.values=siglevel)
+}
+
+wmwpb<-function(x,y=NULL,est=median,alpha=.05,nboot=2000,pr=TRUE,
+na.rm=TRUE,...){
+#
+#   Compute a bootstrap confidence interval for a
+#   measure of location associated with
+#   the distribution of x-y,
+#   est indicates which measure of location will be used
+#   x and y are possibly dependent
+#
+#   loc2dif.ci  computes a non-bootstrap confidence interval
+#
+if(is.null(y[1])){
+if(!is.matrix(x) & !is.data.frame(x))stop('With y missing, x should be a matrix')
+y=x[,2]
+x=x[,1]
+}
+data1<-matrix(sample(length(x),size=length(x)*nboot,replace=TRUE),nrow=nboot)
+data2<-matrix(sample(length(y),size=length(y)*nboot,replace=TRUE),nrow=nboot)
+bvec<-NA
+for(i in 1:nboot)bvec[i]<-wmwloc(x[data1[i,]],y[data2[i,]],est=est,na.rm=na.rm,...)
+bvec<-sort(bvec)
+low<-round((alpha/2)*nboot)+1
+up<-nboot-low
+temp<-sum(bvec<0)/nboot+sum(bvec==0)/(2*nboot)
+sig.level<-2*(min(temp,1-temp))
+estdiff=wmwloc(x,y,est=est,na.rm=na.rm,...)
+list(estimate=estdiff,ci=c(bvec[low],bvec[up]),p.value=sig.level)
+}
+
+wmwloc<-function(x,y,na.rm=TRUE,est=median,...){
+#
+# Estimate the median of the distribution of x-y
+#
+if(na.rm){
+x<-x[!is.na(x)]
+y<-y[!is.na(y)]
+}
+m<-outer(x,y,FUN="-")
+est=est(m,na.rm=TRUE,...)
+est
+}
+
+cid<-function(x,y,alpha=.05,plotit=FALSE,pop=0,fr=.8,rval=15,xlab="",ylab=""){
+#
+#  Compute a confidence interval for delta using the method in
+#  Cliff, 1996, p. 140, eq 5.12.
+#
+#  To compare the lower and upper quantiles of the distribution of D=X-Y,
+#  use cbmhd.
+#
+#  The null hypothesis is that for two independent group, P(X<Y)=P(X>Y).
+#  This function reports a 1-alpha confidence interval for
+#  P(X>Y)-P(X<Y)
+#
+#  Let xi_q be the qth quantile of the distribution of D, q<.5. To test xi_q +xi_1-q=0, use cbmhd
+#  If nothing is going on, D is symmetric about zero, so this function tests for symmetry and provides
+# some sense of how the tails of the distribution D differ.
+#  qwmwhd applies the method using a range of q values
+#
+#  To make inferences about
+#
+#  plotit=TRUE creates a plot of the difference scores.
+#  pop=0 adaptive kernel density estimate
+#  pop=1 results in the expected frequency curve.
+#  pop=2 kernel density estimate (Rosenblatt's shifted histogram)
+#  pop=3 boxplot
+#  pop=4 stem-and-leaf
+#  pop=5 histogram
+#  pop=6  kernel density estimate
+#
+x<-x[!is.na(x)]
+y<-y[!is.na(y)]
+if(length(x)*length(y)>10^6)stop('Use bmp with a large sample size. If using rimul, use ribmp instead')
+m<-outer(x,y,FUN="-")
+msave<-m
+m<-sign(m)
+d<-mean(m)
+phat<-(1-d)/2
+flag=TRUE
+if(phat==0 || phat==1)flag=FALSE
+q0<-sum(msave==0)/length(msave)
+qxly<-sum(msave<0)/length(msave)
+qxgy<-sum(msave>0)/length(msave)
+c.sum<-matrix(c(qxly,q0,qxgy),nrow=1,ncol=3)
+dimnames(c.sum)<-list(NULL,c("P(X<Y)","P(X=Y)","P(X>Y)"))
+if(flag){
+sigdih<-sum((m-d)^2)/(length(x)*length(y)-1)
+di<-NA
+for (i in 1:length(x))di[i]<-sum(x[i]>y)/length(y)-sum(x[i]<y)/length(y)
+dh<-NA
+for (i in 1:length(y))dh[i]<-sum(y[i]>x)/length(x)-sum(y[i]<x)/length(x)
+sdi<-var(di)
+sdh<-var(dh)
+sh<-((length(y)-1)*sdi+(length(x)-1)*sdh+sigdih)/(length(x)*length(y))
+zv<-qnorm(alpha/2)
+cu<-(d-d^3-zv*sqrt(sh)*sqrt((1-d^2)^2+zv^2*sh))/(1-d^2+zv^2*sh)
+cl<-(d-d^3+zv*sqrt(sh)*sqrt((1-d^2)^2+zv^2*sh))/(1-d^2+zv^2*sh)
+}
+if(!flag){
+sh=NULL
+nm=max(c(length(x),length(y)))
+if(phat==1)bci=binomci(nm,nm,alpha=alpha)
+if(phat==0)bci=binomci(0,nm,alpha=alpha)
+}
+if(plotit){
+if(pop==1 || pop==0){
+if(length(x)*length(y)>2500){
+print("Product of sample sizes exceeds 2500.")
+print("Execution time might be high when using pop=0 or 1")
+print("If this is case, might consider changing the argument pop")
+#print("pop=2 might be better")
+}}
+if(pop==0)akerd(as.vector(msave),xlab=xlab,ylab=ylab)
+if(pop==1)rdplot(as.vector(msave),fr=fr,xlab=xlab,ylab=ylab)
+if(pop==2)kdplot(as.vector(msave),rval=rval,xlab=xlab,ylab=ylab)
+if(pop==3)boxplot(as.vector(msave))
+if(pop==4)stem(as.vector(msave))
+if(pop==5)hist(as.vector(msave),xlab=xlab)
+if(pop==6)skerd(as.vector(msave))
+}
+if(flag)pci=c((1-cu)/2,(1-cl)/2)
+if(!flag){
+pci=bci$ci
+cl=1-2*pci[2]
+cu=1-2*pci[1]
+}
+list(n1=length(x),n2=length(y),cl=cl,cu=cu,d=d,sqse.d=sh,phat=phat,summary.dvals=c.sum,ci.p=pci)
+}
+
+trimcibt<-function(x,tr=.2,alpha=.05,nboot=599,side=TRUE,nullval=0){
+#
+#  Compute a 1-alpha confidence interval for the trimmed mean
+#  using a bootstrap percentile t method.
+#
+#  The default amount of trimming is tr=.2
+#  side=T, for true,  indicates the symmetric two-sided method
+#
+#  Side=F yields an equal-tailed confidence interval
+#
+#  NOTE: p.value is reported when side=T only.
+#
+x=elimna(x)
+side<-as.logical(side)
+p.value<-NA
+test<-(mean(x,tr)-nullval)/trimse(x,tr)
+data<-matrix(sample(x,size=length(x)*nboot,replace=TRUE),nrow=nboot)
+data<-data-mean(x,tr)
+top<-apply(data,1,mean,tr)
+bot<-apply(data,1,trimse,tr)
+tval<-top/bot
+if(side)tval<-abs(tval)
+tval<-sort(tval)
+icrit<-round((1-alpha)*nboot)
+ibot<-round(alpha*nboot/2)
+itop<-nboot-ibot #altered code very slightly to correspond to recent versions of my books.
+if(!side){
+trimcibt<-mean(x,tr)-tval[itop]*trimse(x,tr)
+trimcibt[2]<-mean(x,tr)-tval[ibot]*trimse(x,tr)
+}
+if(side){
+trimcibt<-mean(x,tr)-tval[icrit]*trimse(x,tr)
+trimcibt[2]<-mean(x,tr)+tval[icrit]*trimse(x,tr)
+p.value<-(sum(abs(test)<=abs(tval)))/nboot
+}
+list(estimate=mean(x,tr),ci=trimcibt,test.stat=test,p.value=p.value,n=length(x))
+}
+
+sintv2<-function(x,y=NULL,alpha=.05,nullval=0,null.value=NULL,pr=TRUE){
+#
+#   Compute a 1-alpha confidence interval for the median using
+#   the Hettmansperger-Sheather interpolation method.
+#   (See section 4.5.2.)
+#
+#   The default value for alpha is .05.
+#
+#  If y is not null, the function uses x-y, as might be done when comparing dependent variables.
+#
+if(!is.null(y))x=x-y
+if(!is.null(null.value))nullval=null.value
+if(pr){
+if(sum(duplicated(x)>0))print("Duplicate values detected; hdpb might have more power")
+}
+ci<-sint(x,alpha=alpha,pr=FALSE)
+alph<-c(1:99)/100
+for(i in 1:99){
+irem<-i
+chkit<-sint(x,alpha=alph[i],pr=FALSE)
+if(chkit[1]>nullval || chkit[2]<nullval)break
+}
+p.value<-irem/100
+if(p.value<=.01){
+iup<-(irem+1)/100
+alph<-seq(.001,iup,.001)
+for(i in 1:length(alph)){
+p.value<-alph[i]
+chkit<-sint(x,alpha=alph[i],pr=FALSE)
+if(is.na(chkit[1]))break
+if(is.na(chkit[2]))break
+if(chkit[1]>nullval || chkit[2]<nullval)break
+}}
+if(p.value<=.001){
+alph<-seq(.0001,.001,.0001)
+for(i in 1:length(alph)){
+p.value<-alph[i]
+chkit<-sint(x,alpha=alph[i],pr=FALSE)
+if(is.na(chkit[1]))break
+if(is.na(chkit[2]))break
+if(chkit[1]>nullval || chkit[2]<nullval)break
+if(chkit[1]>nullval || chkit[2]<nullval)break
+}}
+list(median=median(elimna(x)),n=length(elimna(x)),ci.low=ci[1],ci.up=ci[2],p.value=p.value)
+}
+
+sint<-function(x,alpha=.05,pr=FALSE){
+#
+#   Compute a 1-alpha confidence interval for the median using
+#   the Hettmansperger-Sheather interpolation method.
+#
+#   The default value for alpha is .05.
+#
+x=elimna(x)
+if(pr){
+if(sum(duplicated(x)>0))print("Duplicate values detected; hdpb might have more power")
+}
+k<-qbinom(alpha/2,length(x),.5)
+gk<-pbinom(length(x)-k,length(x),.5)-pbinom(k-1,length(x),.5)
+if(gk >= 1-alpha){
+gkp1<-pbinom(length(x)-k-1,length(x),.5)-pbinom(k,length(x),.5)
+kp<-k+1
+}
+if(gk < 1-alpha){
+k<-k-1
+gk<-pbinom(length(x)-k,length(x),.5)-pbinom(k-1,length(x),.5)
+gkp1<-pbinom(length(x)-k-1,length(x),.5)-pbinom(k,length(x),.5)
+kp<-k+1
+}
+xsort<-sort(x)
+nmk<-length(x)-k
+nmkp<-nmk+1
+ival<-(gk-1+alpha)/(gk-gkp1)
+lam<-((length(x)-k)*ival)/(k+(length(x)-2*k)*ival)
+low<-lam*xsort[kp]+(1-lam)*xsort[k]
+hi<-lam*xsort[nmk]+(1-lam)*xsort[nmkp]
+sint<-c(low,hi)
+sint
+}
+
+outbox<-function(x,mbox=FALSE,gval=NA,plotit=FALSE,STAND=FALSE){
+#
+# This function detects outliers using the
+# boxplot rule, but unlike the R function boxplot,
+# the ideal fourths are used to estimate the quartiles.
+#
+# Setting mbox=TRUE results in using the modification
+# of the boxplot rule suggested by Carling (2000).
+#
+x<-x[!is.na(x)] # Remove missing values
+if(plotit)boxplot(x)
+n<-length(x)
+temp<-idealf(x)
+if(mbox){
+if(is.na(gval))gval<-(17.63*n-23.64)/(7.74*n-3.71)
+cl<-median(x)-gval*(temp$qu-temp$ql)
+cu<-median(x)+gval*(temp$qu-temp$ql)
+}
+if(!mbox){
+if(is.na(gval))gval<-1.5
+cl<-temp$ql-gval*(temp$qu-temp$ql)
+cu<-temp$qu+gval*(temp$qu-temp$ql)
+}
+flag<-NA
+outid<-NA
+vec<-c(1:n)
+for(i in 1:n){
+flag[i]<-(x[i]< cl || x[i]> cu)
+}
+if(sum(flag)==0)outid<-NULL
+if(sum(flag)>0)outid<-vec[flag]
+keep<-vec[!flag]
+outval<-x[flag]
+n.out=sum(length(outid))
+list(out.val=outval,out.id=outid,keep=keep,n=n,n.out=n.out,cl=cl,cu=cu)
+}
+
+idealf<-function(x,na.rm=FALSE){
+#
+# Compute the ideal fourths for data in x
+#
+if(na.rm)x<-x[!is.na(x)]
+j<-floor(length(x)/4 + 5/12)
+y<-sort(x)
+g<-(length(x)/4)-j+(5/12)
+ql<-(1-g)*y[j]+g*y[j+1]
+k<-length(x)-j+1
+qu<-(1-g)*y[k]+g*y[k-1]
+list(ql=ql,qu=qu)
+}
+
+comvar2<-function(x,y,nboot=1000){
+#
+#  Compare the variances of two independent groups.
+#
+x<-x[!is.na(x)]  # Remove missing values in x
+y<-y[!is.na(y)]  # Remove missing values in y
+est1=var(x)
+est2=var(y)
+sig<-est1-est2
+nmin<-min(length(x),length(y))
+datax<-matrix(sample(x,size=nmin*nboot,replace=TRUE),nrow=nboot)
+datay<-matrix(sample(y,size=nmin*nboot,replace=TRUE),nrow=nboot)
+v1<-apply(datax,1,FUN=var)
+v2<-apply(datay,1,FUN=var)
+boot<-v1-v2
+boot<-sort(boot)
+        ilow <- 15
+        ihi <- 584
+        if(nmin < 250) {
+                ilow <- 13
+                ihi <- 586
+        }
+        if(nmin < 180) {
+                ilow <- 10
+                ihi <- 589
+        }
+        if(nmin < 80) {
+                ilow <- 7
+                ihi <- 592
+        }
+        if(nmin < 40) {
+                ilow <- 6
+                ihi <- 593
+        }
+ilow<-round((ilow/599)*nboot)
+ihi<-round((ihi/599)*nboot)
+ci<-c(boot[ilow+1],boot[ihi])
+list(ci=ci,est.1=est1,est.2=est2,vardif=sig,ratio=est1/est2)
+}
+
+tsub<-function(isub,x,y,tr){
+#
+#  Compute test statistic for trimmed means
+#  when comparing dependent groups.
+#  By default, 20% trimmed means are used.
+#  isub is a vector of length n,
+#  a bootstrap sample from the sequence of integers
+#  1, 2, 3, ..., n
+#
+#  This function is used by ydbt
+#
+tsub<-yuend(x[isub],y[isub],tr=tr)$teststat
+tsub
+}
+
+wincor<-function(x,y=NULL,tr=.2){
+#   Compute the Winsorized correlation between x and y.
+#
+#   tr is the amount of Winsorization
+#   This function also returns the Winsorized covariance
+#
+#    Pairwise deletion of missing values is performed.
+#
+#   x is a vector, or it can be a matrix with two columns when y=NULL
+#
+if(is.null(y[1])){
+if(ncol(x)>2)stop('Two variables only; for more than two use winall')
+y=x[,2]
+x=x[,1]
+}
+sig<-NA
+if(length(x)!=length(y))stop("Lengths of vectors are not equal")
+m1=cbind(x,y)
+m1<-elimna(m1)
+nval=nrow(m1)
+x<-m1[,1]
+y<-m1[,2]
+g<-floor(tr*length(x))
+xvec<-winval(x,tr)
+yvec<-winval(y,tr)
+wcor<-cor(xvec,yvec)
+wcov<-var(xvec,yvec)
+if(sum(x==y)!=length(x)){
+test<-wcor*sqrt((length(x)-2)/(1.-wcor^2))
+sig<-2*(1-pt(abs(test),length(x)-2*g-2))
+}
+list(cor=wcor,cov=wcov,p.value=sig,n=nval)
+}
+
+winval<-function(x,tr=.2){
+#
+#  Winsorize the data in the vector x.
+#  tr is the amount of Winsorization which defaults to .2.
+#
+#  This function is used by several other functions that come with this book.
+#
+y<-sort(x)
+n<-length(x)
+ibot<-floor(tr*n)+1
+itop<-length(x)-ibot+1
+xbot<-y[ibot]
+xtop<-y[itop]
+winval<-ifelse(x<=xbot,xbot,x)
+winval<-ifelse(winval>=xtop,xtop,winval)
+winval
+}
+
+

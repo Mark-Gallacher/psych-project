@@ -1,0 +1,533 @@
+---
+title: "eeg-sim"
+output: html_document
+date: "2022-10-31"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Dependencies
+```{r}
+library(ggplot2)
+library(tibble)
+library(tidyverse)
+#library(primer) # for one_over_f function
+# library(permuco)
+```
+
+
+Edit `one_over_f` function to control variance.
+Original function is available on [GitHub](https://github.com/HankStevens/primer).
+Copyright Hank Stevens.
+
+# Functions (Might Move to Seperate R scripts)
+## Function to Generate 1 over F noise
+```{r}
+one_over_f <- function(gamma = 1, N = 200, outvar = 1){
+    N.2 <- N/2
+    sine.waves <- matrix(NA, nrow = N, ncol = N.2)
+    steps = 2 * pi * (1:N)/N
+    phase <- stats::runif(N.2, 0, 2 * pi)
+    for (i in 1:N.2) {
+        freq <- i
+        weight <- 1/(freq^gamma)
+        y <- weight * sin(freq * steps + phase[i])
+        sine.waves[, i] <- y
+    }
+    out <- rowSums(sine.waves)
+    # force var = outvar and mean = 0
+    out <- out - mean(out);
+    out <- out / sd(out);
+    out <- out * sqrt(outvar);
+    return(out)
+}
+```
+
+## Function to generate raw EEG data, for two groups
+```{r}
+
+generate_raw_egg <- function(num_trials,        ## Vector or List containing size of trial(s)
+                            num_time_points,    ## Number of Unique time points
+                            max_time,           ## Maximum value of time, used to get freq of measurement (max/num_time_point)
+                            cond1_base,         ## Template or Base used to add eeg noise to - for condition 1
+                            cond2_base,         ## Template or Base used to add eeg noise to - for condition 2
+                            gamma_spec_power = 1, 
+                            noise_var = 1, 
+                            stim_onset = 0){
+
+  # create empty list to store df for condtions
+  c_dfs <- list()
+
+for (i in 1:length(num_trials)) {
+  
+  cond1 <- matrix(0, nrow = num_trials[i], ncol = num_time_points)
+  cond2 <- matrix(0, nrow = num_trials[i], ncol = num_time_points)
+  
+  # generate trials given the number of trials
+  for(t in 1:num_trials[i]){
+    
+    # row = trial, col = time point
+    cond2[t,] <- cond2_base + one_over_f(gamma = gamma_spec_power, num_time_points, outvar = noise_var)
+    cond1[t,] <- cond1_base + one_over_f(gamma = gamma_spec_power, num_time_points, outvar = noise_var)  
+    
+  }
+
+
+  # store as tibble where cols = time, rows = trials
+  c1_df <- pivot_raw_eeg(cond1, max_time, max_time/ (num_time_points - 1), stim_onset = stim_onset) |> 
+    mutate(n_trial = num_trials[i], 
+           cond = "cond1")
+  
+  c2_df <- pivot_raw_eeg(cond2, max_time, max_time/ (num_time_points - 1), stim_onset = stim_onset)|> 
+    mutate(n_trial = num_trials[i],
+           cond = "cond2")
+
+  ## storing combined dfs to then bind after loop
+  c_dfs[[i]] <- bind_rows(c1_df, c2_df)
+  
+}
+
+## Combing tibbles to store all raw data
+eeg_raw_df <- bind_rows(c_dfs)
+
+return(eeg_raw_df)
+
+}
+
+```
+
+## Function to pivot Raw Data created from generate_raw_egg()
+```{r}
+pivot_raw_eeg <- function(df, max_time, freq, stim_onset = 0){
+    output <- df |> 
+      as_tibble(.name_repair = ~ as.character(seq(0, max_time, freq))) |> 
+      pivot_longer(cols = everything(), 
+                   names_to = "time", 
+                   values_to = "value") |> 
+      mutate(time = as.integer(time),
+             time = time - stim_onset)
+    
+    return(output)
+    
+  }
+```
+
+## Function to Get descriptive and inferential stats from raw EGG
+```{r}
+get_stats_from_raw <- function(df, alpha = 0.05){
+ 
+  
+output <- df |>  
+  pivot_wider(names_from = cond, 
+              values_from = value, 
+              id_cols = c(time, n_trial), 
+              values_fn = list) |> 
+  unnest(cols = where(is.list)) |> 
+  group_by(time, n_trial) |> 
+  summarise(
+    mn_cond1 = mean(cond1),
+    mn_cond2 = mean(cond2),
+    mn_diff = mn_cond2 - mn_cond1,
+    p = t.test(cond1, cond2)[["p.value"]],
+    ci_l = t.test(cond2, cond1, conf.level = 1 - alpha, alternative = "two.sided")[["conf.int"]][1],
+    ci_u = t.test(cond2, cond1, conf.level = 1 - alpha, alternative = "two.sided")[["conf.int"]][2],
+    .groups = "drop"
+            )|>
+  group_by(n_trial) |>
+  mutate(bon_sig = if_else(p < alpha/length(unique(time)), min(ci_l), NULL),
+         raw_sig = if_else(p < alpha, min(ci_l), NULL)) |>  # just so the graph has a line at zero to show significance
+  ungroup()
+
+  
+return(output)
+}
+
+
+```
+
+# Make template
+```{r}
+set.seed(314)
+
+# true onset = 160 ms, F=17, max at F=26
+true_onset <- 450  ## effect at 450ms
+stim_on <- 300     ## pre-stim is 300ms
+freq <- 1         ## defines resolution of stimulation, frequency of electrode
+max_time <- 800
+Xf <- seq(0, max_time, freq) ## start from zero and end at max time, going up in 10s (freq)
+Nf <- length(Xf) 
+
+temp1 <- vector(mode = "numeric", length = Nf)
+erp <- dnorm(seq(-1.5, 1.5, length.out= 200/freq), 0, 1)
+erp <- erp - min(erp)
+erp <- erp / max(erp)
+
+# getting length and storing them for later use
+l_erp <- length(erp)
+l_temp1 <- length(temp1)
+l_pre_stim <- true_onset / freq
+
+
+temp2 <- c(rep(0, l_pre_stim), erp, rep(0, (l_temp1 - l_erp - l_pre_stim)))
+```
+
+## Illustrate template
+```{r}
+df <- tibble(x = Xf,
+             y = temp2)
+
+ggplot(df, aes(x, y)) +
+  geom_line()
+```
+
+# Generate noise
+
+## For one gamma value
+```{r}
+alpha = 0.05
+Nt <- 5 # number of trials
+gsp <- 0.7 # gamma spectral power
+resmat <- matrix(data = 0, nrow = Nt, ncol = Nf)
+for(T in 1:Nt){
+  resmat[T,] <- one_over_f(gamma = gsp, Nf)
+}
+
+
+
+df <- tibble(x = rep(Xf, each = Nt),
+             y = as.vector(resmat),
+             trials = factor(rep(seq(1,Nt), Nf)))
+ggplot(df, aes(x, y, group = trials, colour = trials)) +
+  geom_line()
+```
+
+## For multiple gamma values
+```{r}
+gsp <- seq(0, 2, 0.2) # gamma spectral power
+outvar <- 1 # noise variance
+Nt <- length(gsp)
+resmat <- matrix(data = 0, nrow = Nt, ncol = Nf)
+for(T in 1:Nt){
+  set.seed(1) # same random seed to better compare trials
+  resmat[T,] <- one_over_f(gamma = gsp[T], Nf, outvar = outvar)
+}
+
+
+
+df <- tibble(x = rep(Xf, each = Nt),
+             y = as.vector(resmat),
+             gamma = as.factor(rep(gsp, Nf)))
+
+
+ggplot(df, aes(x, y, group = gamma)) +
+  geom_line(size = .1) +
+  theme_minimal()+
+  theme(legend.position = "bottom")+
+  facet_wrap(vars(gamma))
+```
+## Illustrate signals + noise
+
+```{r}
+# set.seed(666)
+gsp <- 0.7 # gamma spectral power
+outvar <- seq(0,2,0.2) # noise variance
+noise_df <- list()
+
+for(i in 1:length(outvar)){
+  
+  cond2 <- temp2 + one_over_f(gamma = gsp, Nf, outvar = outvar[i])
+  cond1 <- temp1 + one_over_f(gamma = gsp, Nf, outvar = outvar[i])
+  
+  noise_df[[i]] <- tibble(x = rep(Xf,2),
+             y = c(cond1, cond2),
+             conds = factor(rep(c("Condition 1", "Condition 2"), each = Nf)),
+             noise = outvar[i])
+
+}
+
+noise_df |> 
+  bind_rows() |> 
+  ggplot(aes(x, y, colour = conds), size = .1) +
+  geom_line()+
+  facet_wrap(~noise)
+
+
+
+# Nt <- 12
+# resmat.sig <- matrix(data = 0, nrow = Nt, ncol = Nf)
+# resmat.noi <- matrix(data = 0, nrow = Nt, ncol = Nf)
+# for(T in 1:Nt){
+#   resmat.sig[T,] <- temp2 + one_over_f(gamma = gsp, Nf, outvar = outvar)
+#   resmat.noi[T,] <- temp1 + one_over_f(gamma = gsp, Nf, outvar = outvar)
+# }
+#
+# df <- tibble(x = rep(rep(Xf, each = Nt),2),
+#              y = c(as.vector(resmat.sig), as.vector(resmat.noi)),
+#              trials = factor(rep(1:Nt, Nf*2)),
+#              cat = factor(rep(c("Signal", "Noise"), each = Nt*Nf)))
+# ggplot(df, aes(x, y, group = trials, colour = cat)) +
+#   geom_line(size = 1) +
+#   facet_wrap(vars(trials))
+```
+
+## Generating Raw EEG Data for two cond, at various number of trials
+```{r}
+
+# set.seed(666)
+Nt <- 50
+Nts <- c(10,25,50,100,250,500) # number of trials
+gsp <- 1 # gamma spectral power
+outvar <- 1 # noise variance
+
+
+eeg_raw_df <- generate_raw_egg(num_trials = Nts, 
+                 num_time_points = Nf, 
+                 max_time = max_time, 
+                 cond1_base = temp1, 
+                 cond2_base = temp2, 
+                 gamma_spec_power = gsp, 
+                 noise_var = outvar, 
+                 stim_onset = stim_on)
+```
+
+## Illustrate averages
+```{r}
+eeg_df <- eeg_raw_df |>  
+  get_stats_from_raw(alpha = 0.05)
+```
+
+## Plotting the Mean Differences
+```{r, fig.height= 10}
+## Shading is the CI of the Mean Difference
+
+eeg_df |> 
+  ggplot(aes(x = time)) +
+  geom_line(aes(y = mn_cond1), colour = "#00BFC4") +
+  geom_line(aes(y = mn_cond2), colour = "#F8766D") +
+  geom_vline(xintercept = 0, colour = "azure4")+
+  facet_wrap(~n_trial, scales =  "free")+
+  theme_minimal()+
+  geom_line(aes(y = bon_sig), size = 1)+
+  geom_line(aes(y = raw_sig - 0.05), size = 1, colour = "deepskyblue4")+
+  geom_ribbon(aes(ymax = ci_u, ymin = ci_l), alpha = .3)
+```
+
+## Plotting -log of p values, with bonferroni correction
+```{r}
+eeg_df |> 
+  ggplot(aes(x = time, y = -log(p)))+
+  # geom_point(aes(colour = p < (alpha/ Nf)), show.legend = F, size = .1)+
+  geom_line() +
+  geom_hline(aes(yintercept = -log(alpha/ Nf)))+
+  geom_hline(aes(yintercept = -log(alpha)), colour = "azure4")+
+  theme_minimal()+
+  facet_wrap(~n_trial, scales = "free_y")
+```
+
+## Design two NULL ROPEs to represent control group and both groups pre-stim
+## Simulation Replication of experiment with larger sample, then see if CIs are inside the rope
+## Repeat with No effect between groups, and Effect between groups
+## Look for false positive rate - compare raw, bonferroni p values and ROPE(s)
+## Goal: Does the rope prevent FP in the null setting
+
+
+## Generate Raw ERP by combining Noise and Templates
+```{r}
+## First study has small sample
+Nt <- 25 # number of trials
+gsp <- 1 # gamma spectral power
+outvar <- 1 # noise variance
+
+
+
+eeg_raw_df_trial1 <- generate_raw_egg(num_trials = Nt, 
+                 num_time_points = Nf, 
+                 max_time = max_time, 
+                 cond1_base = temp1, 
+                 cond2_base = temp2, 
+                 gamma_spec_power = gsp, 
+                 noise_var = outvar,
+                 stim_onset = stim_on)
+```
+
+## Get stats - p-values, mean diff, quantile range and confidence intervals
+```{r}
+eeg_df_trial1 <- eeg_raw_df_trial1 |> 
+  get_stats_from_raw(alpha = 0.05)
+
+eeg_df_trial1 |> 
+  ggplot(aes(x = time)) +
+  geom_line(aes(y = mn_cond1), colour = "#00BFC4") +
+  geom_line(aes(y = mn_cond2), colour = "#F8766D") +
+  geom_vline(xintercept = 0, colour = "azure4")+
+  theme_minimal()+
+  geom_line(aes(y = bon_sig), size = 1)+
+  geom_line(aes(y = raw_sig - 0.1), size = 1, colour = "deepskyblue4")+
+  geom_ribbon(aes(ymax = ci_u, ymin = ci_l), alpha = .3)
+```
+
+## Design ROPEs to represent the null and alternative
+```{r}
+## Quantile range for pre-stim
+null_quart <- quantile(x =  eeg_df_trial1 |> 
+                             filter(time < 0) |> 
+                             pull(mn_cond1, mn_cond2) |> 
+                             as.vector(), 
+                           probs = c(2*alpha, (1-2*alpha)))
+    
+## Quantile range for significant mean difference
+alt_quart <- quantile(x = eeg_df_trial1 |> 
+                        filter(p < alpha) |> 
+                        pull(mn_diff) |> 
+                        as.vector(), 
+                      probs = c(2*alpha, (1-2*alpha)))
+
+## Quantile range for bonferroni significant mean difference
+alt_quart_bonf <- quantile(x = eeg_df_trial1 |> 
+                             filter(p < (alpha/ num_time_points)) |> 
+                             pull(mn_diff) |> 
+                             as.vector(), 
+                           probs = c(2*alpha, (1-2*alpha)))
+
+rope <- tibble(n_trial = Nt, 
+               null_min = null_quart[1], 
+               null_max = null_quart[2], 
+               alt_min = alt_quart[1], 
+               alt_max = alt_quart[2], 
+               )
+
+eeg_df_trial1 |> 
+  inner_join(rope, by = "n_trial")
+
+
+```
+
+
+
+```{r}
+eeg_df_trial1 |> 
+  ggplot(aes(x = time)) +
+  geom_line(aes(y = mn_cond1), colour = "#00BFC4") +
+  geom_line(aes(y = mn_cond2), colour = "#F8766D") +
+  geom_line(aes(y = mn_diff), colour = "#000000") +
+  geom_vline(xintercept = 0, colour = "azure4")+
+  theme_minimal()+
+  geom_line(aes(y = bon_sig), size = 1)+
+  geom_line(aes(y = raw_sig - 0.1), size = 1, colour = "deepskyblue4")+
+  geom_ribbon(aes(ymax = ci_u, ymin = ci_l), alpha = .3)+
+  geom_ribbon(aes(x = time , ymin = rope$null_min, ymax = rope$null_max), alpha = .3, fill = "skyblue4")+
+  geom_ribbon(aes(x = time , ymin = rope$alt_min, ymax = rope$alt_max), alpha = .3, fill = "darkred")
+```
+
+## Generate Raw ERP by combining Noise and Templates (Trial 2)
+```{r}
+## First study has small sample
+Nt <- 50 # number of trials
+gsp <- 1 # gamma spectral power
+outvar <- 1 # noise variance
+
+eeg_raw_df_trial2 <- generate_raw_egg(num_trials = Nt, 
+                 num_time_points = Nf, 
+                 max_time = max_time, 
+                 cond1_base = temp1, 
+                 cond2_base = temp2, 
+                 gamma_spec_power = gsp, 
+                 noise_var = outvar, 
+                 stim_onset = stim_on)
+```
+
+## Get stats - p-values, mean diff, quantile range and confidence intervals (Trial 2)
+```{r}
+eeg_df_trial2 <- eeg_raw_df_trial2 |> 
+  get_stats_from_raw(alpha = 0.05)
+
+eeg_df_trial2 |> 
+  ggplot(aes(x = time)) +
+  geom_line(aes(y = mn_cond1), colour = "#00BFC4") +
+  geom_line(aes(y = mn_cond2), colour = "#F8766D") +
+  geom_line(aes(y = mn_diff), colour = "#000000") +
+  geom_vline(xintercept = 0, colour = "azure4")+
+  theme_minimal()+
+  geom_line(aes(y = bon_sig), size = 1)+
+  geom_line(aes(y = raw_sig - 0.1), size = 1, colour = "deepskyblue4")+
+  geom_ribbon(aes(ymax = ci_u, ymin = ci_l), alpha = .3)+
+  geom_ribbon(aes(x = time , ymin = rope$null_min, ymax = rope$null_max),alpha = .3, fill = "skyblue4")+
+  geom_ribbon(aes(x = time , ymin = rope$alt_min, ymax = rope$alt_max),alpha = .3, fill = "darkred")
+```
+## Repeating ERPs with an effect present
+```{r}
+## getting pipeline function to repeat protocol
+source("eeg_rope_pipeline.R")
+
+sample_size <- 2^(1:9)
+
+sim_df <- sim_eeg_rope_pipeline(sample_size = sample_size, 
+                      alpha = 0.05, 
+                      num_time_points = Nf, 
+                      max_time = max_time, 
+                      cond1_base = temp1, 
+                      cond2_base = temp2, 
+                      gamma_spec_power = gsp, 
+                      noise_var = outvar, 
+                      stim_onset = stim_on)
+```
+
+```{r, warning=F, fig.height=10}
+sim_df |> 
+  ggplot(aes(x = time)) +
+  geom_line(aes(y = mn_cond1), colour = "#00BFC4", alpha = .5) +
+  geom_line(aes(y = mn_cond2), colour = "#F8766D", alpha = .5) +
+  geom_line(aes(y = mn_diff), colour = "#000000") +
+  geom_vline(xintercept = 0, colour = "azure4")+
+  geom_hline(yintercept = 0, colour = "azure4")+
+  theme_minimal()+
+  geom_line(aes(y = bon_sig), size = 1)+
+  geom_line(aes(y = raw_sig - 0.15), size = 1, colour = "deepskyblue4")+
+  geom_ribbon(aes(ymax = ci_u, ymin = ci_l), alpha = .1)+
+  geom_ribbon(aes(x = time , ymin = null_min, ymax = null_max), alpha = .1, fill = "skyblue4", colour = "skyblue4")+
+  # geom_ribbon(aes(x = time , ymin = alt_min, ymax = alt_max), alpha = .4, colour = "darkred", fill = "azure3")+
+  geom_ribbon(aes(x = time , ymin = alt_bonf_min, ymax = alt_bonf_max), alpha = .1, fill = "darkblue",  colour = "darkblue")+
+  facet_wrap(~n_trial, scale = "free_y")
+```
+
+## Repeating ERPs with no underlying effect (only noise) 
+```{r}
+## getting pipeline function to repeat protocol
+source("eeg_rope_pipeline.R")
+
+
+sim_null_df <- sim_eeg_rope_pipeline(sample_size = sample_size, 
+                      alpha = 0.05, 
+                      num_time_points = Nf, 
+                      max_time = max_time, 
+                      cond1_base = temp1, 
+                      cond2_base = temp1, # both temps are the same 
+                      gamma_spec_power = gsp, 
+                      noise_var = outvar, 
+                      stim_onset = stim_on)
+
+```
+
+```{r, warning=F, fig.height=10}
+sim_null_df |>
+  ggplot(aes(x = time)) +
+  geom_line(aes(y = mn_cond1), colour = "#00BFC4") +
+  geom_line(aes(y = mn_cond2), colour = "#F8766D") +
+  geom_line(aes(y = mn_diff), colour = "#000000") +
+  geom_vline(xintercept = 0, colour = "azure4")+
+  geom_hline(yintercept = 0, colour = "azure4")+
+  theme_minimal()+
+  geom_line(aes(y = bon_sig), size = 1)+
+  geom_line(aes(y = raw_sig - 0.15), size = 1, colour = "deepskyblue4")+
+  geom_ribbon(aes(ymax = ci_u, ymin = ci_l), alpha = .1)+
+  geom_ribbon(aes(x = time , ymin = null_min, ymax = null_max), alpha = .1, fill = "skyblue4", colour = "skyblue4")+
+  # geom_ribbon(aes(x = time , ymin = alt_min, ymax = alt_max), alpha = .4, colour = "darkred", fill = "azure3")+
+  # geom_ribbon(aes(x = time , ymin = alt_bonf_min, ymax = alt_bonf_max), alpha = .4, colour = "darkblue", fill = "azure3")+
+  facet_wrap(~n_trial, scale = "free_y")
+```
+
+
+

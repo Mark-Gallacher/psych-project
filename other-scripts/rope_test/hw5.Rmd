@@ -1,0 +1,69 @@
+---
+title: "Homework #5"
+author: "Group: the kurtotic avengers"
+date: "`r Sys.Date()`"
+output:
+  pdf_document:
+    fig_caption: no
+    number_sections: no
+    toc: yes
+    toc_depth: 2
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Dependencies
+```{r message=FALSE, warning=FALSE}
+library(ggplot2)
+library(tibble)
+source("./code/theme_gar.txt")
+source("./code/Rallfun-v35-light.txt")
+```
+
+# Exercise 1
+
+You are exploring a new stimulus manipulation and want to see it's effect on reaction times. You do not know how large the effect could be. However, from experience, you assume that to be meaningful, an effect should be at least 10 ms. So you setup a +/- 10 ms ROPE around zero.
+
+## Get data
+
+Load the data, which consists in a 20 rows (participants) x 2 columns (conditions) matrix of median reaction times for a standard stimulus (column 1) and the new stimulus (column 2) you are testing. The data are stored in variable `res`.
+
+```{r}
+load(file = "./data/hw5_ex1.RData")
+```
+
+## Inferences
+
+What do you conclude?
+
+```{r}
+
+```
+
+# Exercise 2
+
+One of your colleagues has published an article reporting the comparison of reaction times in two conditions in 20 participants. This is a paired design in which each participant is tested in the two conditions, and 30 trials are collected per participant and condition. For each condition and each participant, the median reaction time was saved, and then a bootstrap-t on 5% trimmed means was used to compute a 97% confidence/compatibility/uncertainty interval for the group difference. You can load the data in the next chunk. The group difference is stored in `samp1.diff` and the 97% CI in `boot.ci`.
+
+## Get data
+
+```{r}
+set.seed(777)
+load(file = "./data/hw5_ex2.RData")
+```
+
+The results indicate a 5% trimmed mean difference of `r round(samp1.diff, digits=1)` and 97% CI of [`r round(boot.ci[1], digits=1)`, `r round(boot.ci[2], digits=1)`].
+
+## Replication attempt
+
+You attempt to replicate this study. Following the work of Rouder & Haaf (2018), and a simulation, you decide that you should invest in testing more participants than trials, so you collect 30 trials per condition in 70 participants. The results are stored in variable `res`. You set your hypothesis to the group difference reported by your colleague, and you use their CI as a ROPE. Are your results consistent with the previous ones?
+
+```{r}
+
+```
+
+# References
+
+Rouder, J.N. & Haaf, J.M. (2018) Power, Dominance, and Constraint: A Note on the Appeal of Different Design Traditions. Advances in Methods and Practices in Psychological Science, 1, 19–26.
+
