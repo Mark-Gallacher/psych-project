@@ -114,7 +114,7 @@ seq_t_test_many_alphas_mean_break |>
   ggtitle("Sequential Testing - False Posities at Various Alpha Levels")
 
 
-# ggsave(filename = here::here("images", "ch2_seq_t_no_rope.png"), width = 10, height = 8, dpi = 360)
+ggsave(filename = here::here("images", "ch2_seq_t_no_rope.png"), width = 10, height = 8, dpi = 360)
 ```
 
 
