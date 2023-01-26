@@ -17,19 +17,13 @@ seq_t_test_many_alphas_mean_with_diff <- read_csv(here::here("sim_data","seq_t_t
 ```
 
 ```{r}
-seq_t_test_many_alphas_mean |> 
-  rename("mean_diff" = "p", 
-         "p" = "mean_diff")
-
-head(seq_t_test_many_alphas_mean)
+head(seq_t_test_many_alphas_mean_break)
 head(seq_t_test_many_alphas_mean_no_break)
 head(seq_t_test_many_alphas_mean_with_diff)
 ```
 
 ```{r, fig.height = 8, fig.width= 10}
-seq_t_test_many_alphas_mean |> 
-  rename("mean_diff" = "p", 
-         "p" = "mean_diff") |> 
+seq_t_test_many_alphas_mean_break |> 
   mutate(sig = as.factor(if_else(p < alpha, 1, 0)), 
          alpha = as.factor(alpha)) |> 
   select(n, alpha, sig, p, mean_diff, l_ci, u_ci) |>
@@ -46,8 +40,6 @@ seq_t_test_many_alphas_mean |>
 
 ```{r, fig.height = 8, fig.width= 10}
 sqtt_no_b_df <- seq_t_test_many_alphas_mean_no_break |> 
-  rename("mean_diff" = "p", 
-         "p" = "mean_diff") |> 
   mutate(sig = as.factor(if_else(p < alpha, 1, 0)), 
          alpha = as.factor(alpha)) |> 
   select(n, alpha, sig, p, mean_diff, l_ci, u_ci) |> 
@@ -68,25 +60,20 @@ sqtt_no_b_df |>
 ```
 
 
-```{r, fig.height = 8, fig.width= 10}
+```{r, fig.height = 8, fig.width= 10, eval = F}
 seq_t_test_many_alphas_mean_no_break |>   
-  rename("mean_diff" = "p", 
-         "p" = "mean_diff") |> 
   group_by(alpha, n) |> 
-  summarise(mn_diff = mean(mean_diff, na.rm = T), .groups = "drop") |> 
-  ggplot(aes(n,mn_diff, colour = as.factor(alpha)))+
+  ggplot(aes(n, mean_diff, colour = as.factor(alpha)))+
   geom_point(alpha = 0.4)+
-  geom_line(size = 2, alpha = .3)+
+  # geom_line(size = 2, alpha = .3)+
   theme_minimal()+
-  scale_x_log10("Sample Size")+
+  scale_x_continuous("Sample Size")+
   scale_y_continuous("Mean Difference")
 ```
 
 
 ```{r, fig.height = 8, fig.width= 10}
 sqtt_no_b_margin_df <- seq_t_test_many_alphas_mean_no_break |> 
-  rename("mean_diff" = "p", 
-         "p" = "mean_diff") |> 
   mutate(sig = as.factor(if_else((p < alpha & mean_diff > 0.1), 1, 0)), 
          alpha = as.factor(alpha)) |> 
   select(n, alpha, sig, p, mean_diff, l_ci, u_ci) |> 
@@ -111,34 +98,34 @@ sqtt_no_b_margin_df |>
 
 
 ```{r, fig.height = 8, fig.width= 10}
-sqtt_no_b_diff_df <- seq_t_test_many_alphas_mean_with_diff |> 
-  rename("mean_diff" = "p", 
-         "p" = "mean_diff") |> 
-  mutate(sig = as.factor(if_else(p < alpha, 1, 0)), 
-         alpha = as.factor(alpha)) |> 
-  select(n, alpha, sig, p, mean_diff, l_ci, u_ci) |> 
-  group_by(n, alpha, sig) |> 
-  summarise(prop = n(), .groups = "drop") |> 
-  pivot_wider(names_from = sig, values_from = prop) |> 
-  mutate(fp = `1` / (`1` + `0`)) |> 
-  group_by(alpha) |> 
-  mutate(mn_fp = mean(fp, na.rm = TRUE))
-
-sqtt_no_b_diff_df |> 
-  ggplot(aes(1 - `1`/1000,`1`/1000, colour = alpha, group = alpha))+
-  geom_line(size = 2, alpha = 0.4)+
-  # geom_line(aes(n, fp), size = 2, alpha = .7)+
-  theme_minimal() +
-  scale_x_log10("False Negatives")+
-  scale_y_continuous("True Negatives")
-
-sqtt_no_b_diff_df |> 
-  ggplot(aes(n,`1`/1000, colour = alpha, group = alpha))+
-  geom_point(alpha = 0.4)+
-  geom_line(aes(n, fp), size = 2, alpha = .7)+
-  theme_minimal() +
-  scale_x_log10("N")+
-  scale_y_continuous("True Negatives")
+# sqtt_no_b_diff_df <- seq_t_test_many_alphas_mean_with_diff |> 
+#   rename("mean_diff" = "p", 
+#          "p" = "mean_diff") |> 
+#   mutate(sig = as.factor(if_else(p < alpha, 1, 0)), 
+#          alpha = as.factor(alpha)) |> 
+#   select(n, alpha, sig, p, mean_diff, l_ci, u_ci) |> 
+#   group_by(n, alpha, sig) |> 
+#   summarise(prop = n(), .groups = "drop") |> 
+#   pivot_wider(names_from = sig, values_from = prop) |> 
+#   mutate(fp = `1` / (`1` + `0`)) |> 
+#   group_by(alpha) |> 
+#   mutate(mn_fp = mean(fp, na.rm = TRUE))
+# 
+# sqtt_no_b_diff_df |> 
+#   ggplot(aes(1 - `1`/1000,`1`/1000, colour = alpha, group = alpha))+
+#   geom_line(size = 2, alpha = 0.4)+
+#   # geom_line(aes(n, fp), size = 2, alpha = .7)+
+#   theme_minimal() +
+#   scale_x_log10("False Negatives")+
+#   scale_y_continuous("True Negatives")
+# 
+# sqtt_no_b_diff_df |> 
+#   ggplot(aes(n,`1`/1000, colour = alpha, group = alpha))+
+#   geom_point(alpha = 0.4)+
+#   geom_line(aes(n, fp), size = 2, alpha = .7)+
+#   theme_minimal() +
+#   scale_x_log10("N")+
+#   scale_y_continuous("True Negatives")
 ```
 
 ```{r, fig.height = 8, fig.width= 10}

@@ -6,7 +6,7 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, fig.height = 8, fig.width = 10)
+knitr::opts_chunk$set(echo = TRUE, fig.height = 8, fig.width = 10, dpi = 300)
 ```
 
 ```{r, warning=F, message=F}
@@ -15,10 +15,13 @@ library(tidyverse)
 library(ggtext)
 
 # loading in User-Defined Functions
-source(here::here("my-scripts", "eeg_rope_pipeline.R"))
-source(here::here("my-scripts", "eeg_sim_functions.R"))
+source(here::here("my-scripts/R", "eeg_rope_pipeline.R"))
+source(here::here("my-scripts/R", "eeg_sim_functions.R"))
 ```
-# Overview of Chapter
+
+# Chapter 4 of Project - Simulated EEG and ROPE Application
+
+# Overview of Chapter 1 - Multivarient Approach
 
 ### Part One - Generate Raw EEG data
 In this step, we use 1/F noise generated from a functions derived from Hank Steven's work (original function is available on [GitHub](https://github.com/HankStevens/primer)). After define to templates, one containing an effect and one without, we combine these with noise in order to represent a single trial. We then regenerate the noise again for each participant. 
@@ -30,10 +33,10 @@ set.seed(314)
 
 true_onset <- 450  ## Effect at 450ms
 stim_on <- 300     ## Stimulus is shown at 300ms
-freq <- 2          ## Defines resolution of stimulation, frequency of electrode (This is around 500 reading a second)
+freq <- 4         ## Defines resolution of stimulation, frequency of electrode (This is around 250 reading a second)
 max_time <- 800    ## End time for Epoch
 
-Xf <- seq(0, max_time, freq) ## start from zero and end at max time, going up in 2ms (freq)
+Xf <- seq(0, max_time, freq) ## start from zero and end at max time, going up in 4ms (freq)
 Nf <- length(Xf)   ## Number of timepoints
 
 # Template one only contains zeros
@@ -46,11 +49,10 @@ erp <- erp / max(erp)
 
 # Getting length and storing them for later use
 l_erp <- length(erp)
-l_temp1 <- length(temp1)
-l_pre_stim <- true_onset / freq
+l_pre_stim <- ceiling(true_onset / freq)
 
 # Template 2 contains the ERP peak
-temp2 <- c(rep(0, l_pre_stim), erp, rep(0, (l_temp1 - l_erp - l_pre_stim)))
+temp2 <- c(rep(0, l_pre_stim), erp, rep(0, (Nf - l_erp - l_pre_stim)))
 ```
 
 #### Visualising the ERP Peak 
@@ -70,11 +72,14 @@ tibble(x = Xf, y = temp2) |>
 #### Combining Templates with Noise - Simulating 12 "experiments", starting with 2 trials and doubling each time (until 4096 trials)
   
 ```{r}
-sample_size <- 2^(1:12) # number of trials
+sample_size <-c(10, 25, 50, 100, 150, 200) # number of trials
 gsp <- 1 # gamma spectral power 
 outvar <- 1 # noise variance
 
 alpha = 0.05 ## Standard Alpha Level for Significance Testing
+seed = 1 # set.seed(1)
+static_margins = c(0.3, 0.2, 0.1) # static margins for NUll ROPE
+
 
 ## Effect Present in template 2 (temp2)
 sim_df_1 <- sim_eeg_rope_pipeline(
@@ -86,7 +91,9 @@ sim_df_1 <- sim_eeg_rope_pipeline(
                       cond2_base = temp2, 
                       gamma_spec_power = gsp, 
                       noise_var = outvar,       # Influence Noise output - Zero means no Noise
-                      stim_onset = stim_on     # Time when Stimulus was "shown"
+                      stim_onset = stim_on,     # Time when Stimulus was "shown"
+                      seed = seed, 
+                      static_margin = static_margins
                       )
 
 ## No effect Present (Only using temp1)
@@ -99,7 +106,9 @@ sim_df_2 <- sim_eeg_rope_pipeline(
                       cond2_base = temp1, 
                       gamma_spec_power = gsp, 
                       noise_var = outvar,      
-                      stim_onset = stim_on    
+                      stim_onset = stim_on, 
+                      seed = seed, 
+                      static_margin = static_margins
                       )
 
 
@@ -107,129 +116,55 @@ sim_df_2 <- sim_eeg_rope_pipeline(
 
 
 ```{r, include=FALSE}
-### Variable for Graphs
 
-fill_alpha = .2
-fill_colours = c("azure4", "skyblue", "darkblue")
-
-line_alpha = .7
-line_colours = c("#00BFC4", "#F8766D", "deepskyblue4", "darkblue", "black")
-line_size = 1
-
-
-plot_raw_rope <- function(df){
-  df |> 
-  ggplot(aes(x = time)) +
-  geom_line(aes(y = mn_cond1), colour = line_colours[1], alpha = line_alpha) +
-  geom_line(aes(y = mn_cond2), colour = line_colours[2], alpha = line_alpha) +
-  geom_line(aes(y = mn_diff), colour = line_colours[5]) +
-  geom_vline(xintercept = 0, colour = fill_colours[1])+
-  geom_hline(yintercept = 0, colour = fill_colours[1])+
-  theme_minimal()+
-  geom_line(aes(y = raw_sig - 0.1), size = line_size, colour = line_colours[3])+
-  geom_line(aes(y = bon_sig), size = line_size, colour = line_colours[4])+
-  geom_ribbon(aes(ymax = ci_u, ymin = ci_l), alpha = fill_alpha, fill = fill_colours[1])+
-  geom_ribbon(aes(x = time , ymin = null_min, ymax = null_max), alpha = fill_alpha, fill = fill_colours[2], colour = fill_colours[2])+
-  geom_ribbon(aes(x = time , ymin = alt_min, ymax = alt_max), alpha = fill_alpha, fill = line_colours[3],  colour = line_colours[3])+
-  facet_wrap(~n_trial, scale = "free_y")+
-  labs(title = glue::glue(
-         "<b>ERP Mean Values across Time with 
-         <span style='color:{fill_colours[1]};'>95% Confidence Intervals</span> for Various Sample Sizes</b><br>
-         <i><span style='color:{line_colours[4]};'>Mean Difference</span> ,
-         <span style='color:{line_colours[1]};'>Condition 1</span> and
-         <span style='color:{line_colours[2]};'>Condition 2</span></i>"), 
-      subtitle = glue::glue("Lines at Bottom represent significance, 
-                            <b span style='color:{line_colours[3]};'>Raw p-values</b span> and 
-                            <b span style='color:{line_colours[4]};'>Bonferroni Corrected </b span><br>
-                            Regions of Practical Equivalance
-                            <b span style='color:{fill_colours[2]};'>Null ROPE</b span> and
-                            <b span style='color:{line_colours[3]};'>Raw Alternative ROPE</b span>"))+
-  theme(plot.title = element_markdown(lineheight = 1.5),
-    plot.subtitle = element_markdown(lineheight = 1.5))+
-  scale_x_continuous("Time (ms)")+
-  scale_y_continuous("")
-}
-
-plot_bonf_rope <- function(df){
-  df |> 
-  ggplot(aes(x = time)) +
-  geom_line(aes(y = mn_cond1), colour = line_colours[1], alpha = line_alpha) +
-  geom_line(aes(y = mn_cond2), colour = line_colours[2], alpha = line_alpha) +
-  geom_line(aes(y = mn_diff), colour = line_colours[5]) +
-  geom_vline(xintercept = 0, colour = fill_colours[1])+
-  geom_hline(yintercept = 0, colour = fill_colours[1])+
-  theme_minimal()+
-  geom_line(aes(y = raw_sig - 0.1), size = line_size, colour = line_colours[3])+
-  geom_line(aes(y = bon_sig), size = line_size, colour = line_colours[4])+
-  geom_ribbon(aes(ymax = ci_u, ymin = ci_l), alpha = fill_alpha, fill = fill_colours[1])+
-  geom_ribbon(aes(x = time , ymin = null_min, ymax = null_max), alpha = fill_alpha, fill = fill_colours[2], colour = fill_colours[2])+
-  geom_ribbon(aes(x = time , ymin = alt_bonf_min, ymax = alt_bonf_max), alpha = fill_alpha, fill = line_colours[4],  colour = line_colours[4])+
-  facet_wrap(~n_trial, scale = "free_y")+
-  labs(title = glue::glue(
-         "<b>ERP Mean Values across Time with 
-         <span style='color:{fill_colours[1]};'>95% Confidence Intervals</span> for Various Sample Sizes</b><br>
-         <i><span style='color:{line_colours[4]};'>Mean Difference</span> ,
-         <span style='color:{line_colours[1]};'>Condition 1</span> and
-         <span style='color:{line_colours[2]};'>Condition 2</span></i>"), 
-      subtitle = glue::glue("Lines at Bottom represent significance, 
-                            <b span style='color:{line_colours[3]};'>Raw p-values</b span> and 
-                            <b span style='color:{line_colours[4]};'>Bonferroni Corrected </b span><br>
-                            Regions of Practical Equivalance
-                            <b span style='color:{fill_colours[2]};'>Null ROPE</b span> and
-                            <b span style='color:{fill_colours[3]};'>Bonferroni Alternative ROPE</b span>"))+
-  theme(plot.title = element_markdown(lineheight = 1.5),
-    plot.subtitle = element_markdown(lineheight = 1.5))+
-  scale_x_continuous("Time (ms)")+
-  scale_y_continuous("")
-}
-
+# code to generate the plots
+source(here::here("my-scripts", "R", "eeg_rope_graphs.R"))
+## theme for the plots
+source(here::here("my-scripts", "R", "project_themes.R"))
+# set theme to project_theme
+theme_set(theme_project_light())
 ```
 
 
 ```{r, warning=F}
-sim_df_1 |> 
-  ggplot(aes(x = time)) +
-  geom_line(aes(y = mn_cond1), colour = line_colours[1], alpha = line_alpha) +
-  geom_line(aes(y = mn_cond2), colour = line_colours[2], alpha = line_alpha) +
-  geom_line(aes(y = mn_diff), colour = line_colours[5]) +
-  geom_vline(xintercept = 0, colour = fill_colours[1])+
-  geom_hline(yintercept = 0, colour = fill_colours[1])+
-  theme_minimal()+
-  geom_line(aes(y = raw_sig - 0.05), size = line_size, colour =  line_colours[3])+
-  geom_line(aes(y = bon_sig), size = line_size, colour = line_colours[4])+
-  geom_ribbon(aes(ymax = ci_u, ymin = ci_l), alpha = fill_alpha, fill = fill_colours[1])+
-  facet_wrap(~n_trial, scale = "free_y")+
-  labs(title = glue::glue(
-         "<b>ERP Mean Values across Time with 
-         <span style='color:{fill_colours[1]};'>95% Confidence Intervals</span> for Various Sample Sizes</b><br>
-         <i><span style='color:{line_colours[4]};'>Mean Difference</span> ,
-         <span style='color:{line_colours[1]};'>Condition 1</span> and
-         <span style='color:{line_colours[2]};'>Condition 2</span></i>"), 
-      subtitle = glue::glue("Lines at Bottom represent significance, 
-                            <b span style='color:{line_colours[3]};'>Raw p-values</b span> and 
-                            <b span style='color:{line_colours[4]};'>Bonferroni Corrected </b span>"))+
-  theme(plot.title = element_markdown(lineheight = 1.5),
-    plot.subtitle = element_markdown(lineheight = 1.5))+
-  scale_x_continuous("Time (ms)")+
-  scale_y_continuous("")
+p1 <- sim_df_1 |> 
+  plot_base()+ 
+  labs(subtitle = glue::glue("Lines at Bottom represent significance, 
+                            <b><span style='color:{sig_colours[1]};'>Raw p-values </span></b>and 
+                            <b><span style='color:{sig_colours[2]};'>Bonferroni Corrected</span></b>"))
+
+# ggsave(plot = p1, filename = here::here("images", "ch4_rope_eff_plain.png"), width = 10, height = 8, dpi = 360)
 ```
 
-### Part Two -  Define ROPEs
+### Part Two -  Define Nulls ROPEs
 ### Experiments with an Effect
 We are going to define two ROPE (Regions of Practical Equivalence) using the data to represent the null and alternative hypothesis. The Null ROPE will be defined by the 90% quantile range of the mean pre-stimulus electrical activity for both groups and the Alternative ROPE will be defined by the mean differences of only the significant p-values. It may be better specify the range of time points **a priori**, however, I will use two different ROPEs to represent the alternative hypthesis, one defined from raw p-values and the other by bonferroni corrected p-values. This is provide a more conservative definition of an effect, as some results pre-stimulus can be significant and those false positive should not influence the alternative ROPE. 
 
 Once the ROPE is created for an "experiment", it will superimpose the data of the next experiment, to see how the new data fits to the previous study. If the Confidence intervals are perfectly contained in a ROPE, then we can consider that as support for rejecting and maintaining the null hypothesis. For example, if the Confidence interval is inside the Null ROPE, even if the difference is statistically significant, this should likely be interpreted as evidence for keeping the null. Likewise, if the alternative ROPE covers the majority of the ERP amplitude, then that would be evidence of a replication of the underlying effect and thus, evidence to reject the null. 
 
 ```{r,  warning=F}
-sim_df_1 |> 
-  plot_bonf_rope()
+ch4_sim_1 <- sim_df_1 |> 
+  plot_nu_rope()
+
+ch4_sim_1
 ```
 
 
-```{r, warning=F}
-sim_df_1 |> 
-  plot_raw_rope()
+```{r,  eval = F, include=F}
+# Code to save each graph in ch4
+ropes <- colnames(sim_df_1)[str_detect(string = colnames(sim_df_1), pattern = "^(nu_)")]|> 
+  str_remove_all("^(nu_)") |> 
+  str_remove_all("(_min)|(_max)$") |> 
+  unique()
+
+plots <- list()
+
+for(i in 1:length(ropes)){
+  filename <- paste("ch4_rope_eff_",ropes[[i]],".png",sep="")
+  ggsave(plot = ch4_sim_1[[i]], file = here::here("images", filename), width = 10, height = 8, dpi = 360)
+}
 ```
+
 
 As sample size increases the effect becomes more clear and obvious, and the background noise appears to cancel itself out. This in turn increases the size of the alternative ROPEs, both ROPE defined from raw p-values and bonferroni corrected are wided at the larger sample size. However, raw p-values cause the ROPE to cover the entire range of values, including values where an effect is unlikely. Moreover, it appears only the Bonferroni defined ROPE maintains a gap between the two ROPEs, the Null and Alternative, whch would allow easier interpretation. For, if the ROPEs overlap, and the Confidence interval stretches across both, then it is unclear which ROPE it supports, preventing us to make a clear preference of a hypothesis. 
 
@@ -239,14 +174,26 @@ It is worth noting that the peak of each of the effects appears to go above the 
 
 To see how a ROPE can prevent false positives, we ran the EEG simulation but with no underlying effect, therefore any statistically significant results are false positives. 
 ```{r, warning=F}
-sim_df_2 |> 
-  plot_bonf_rope()
+ch4_sim_2 <- sim_df_2 |>
+  plot_nu_rope()
+
+ch4_sim_2
+```
+```{r,  eval = F, include=F}
+# Code to save each graph in ch4
+ropes <- colnames(sim_df_2)[str_detect(string = colnames(sim_df_2), pattern = "^(nu_)")]|> 
+  str_remove_all("^(nu_)") |> 
+  str_remove_all("(_min)|(_max)$") |> 
+  unique()
+
+plots <- list()
+
+for(i in 1:length(ropes)){
+  filename <- paste("ch4_rope_no_eff_",ropes[[i]],".png",sep="")
+  ggsave(plot = ch4_sim_2[[i]], file = here::here("images", filename), width = 10, height = 8, dpi = 360)
+}
 ```
 
-```{r, warning=F}
-sim_df_2|> 
-  plot_raw_rope()
-```
 
 Just like the ROPEs for when there is an underlying effect, the ROPE constructed from raw p-values appears to be less precise and helpful. Here we can see how False positves influence the ROPE whilst no results were significant after bonferroni correction. 
 
@@ -257,70 +204,212 @@ It is probably worth replicating this pipeline (the above process) several times
 ```{r, collapse=F, message=F}
 ## Useful to define region where effect is, to know significant results outside that region are caused from noise
 effect_time <- c(true_onset - stim_on, true_onset + 200 - freq - stim_on)
+seeds = 1:1000 # the seeds that were used in the 1000 repetitions of the Pipeline
 
-fp_df_1 <- sim_df_1 |> 
-  mutate(
-    fp = if_else( p < alpha & (time < effect_time[1] | time > effect_time[2]), 1, 0),
-    fp_bonf = if_else( p < alpha/Nf & (time < effect_time[1] | time > effect_time[2]), 1, 0),
-    fp_rope = if_else( p < alpha & (time < effect_time[1] | time > effect_time[2]) & (ci_u < null_min | ci_l > null_max), 1, 0)
-         ) |> 
-  group_by(n_trial, fp) |> 
-  mutate(sum_fp = sum(fp)/Nf,
-         sum_fp_bonf = sum(fp_bonf)/Nf,
-         sum_fp_rope = sum(fp_rope)/Nf) |> 
-  ungroup() |> 
-  pivot_longer(cols = contains("sum"), names_to = "fp_sum", values_to = "prop")
+## Reading the Pipeline Simulations - 1000 repetitions
+sim_rope_1 <- read_csv(here::here("sim_data", "sim_egg_pipeline_eff.csv"))
+sim_rope_2 <- read_csv(here::here("sim_data", "sim_egg_pipeline_no_eff.csv"))
 
-fp_df_2 <- sim_df_2 |> 
-  mutate(
-    fp = if_else( p < alpha, 1, 0),
-    fp_bonf = if_else( p < alpha/Nf, 1, 0),
-    fp_rope = if_else( p < alpha & (ci_u < null_min | ci_l > null_max), 1, 0)
-         ) |> 
-  group_by(n_trial, fp) |> 
-  mutate(sum_fp = sum(fp)/Nf,
-         sum_fp_bonf = sum(fp_bonf)/Nf,
-         sum_fp_rope = sum(fp_rope)/Nf) |> 
-  ungroup() |> 
-  pivot_longer(cols = contains("sum"), names_to = "fp_sum", values_to = "prop")
+## Evaluating the ROPEs of Number of False Positives
+eval_rope_1 <- sim_rope_1 |> 
+  eval_rope(alpha = 0.05, effect_time_vector = effect_time)
+
+eval_rope_2 <- sim_rope_2 |> 
+  eval_rope(alpha = 0.05, effect_time_vector = effect_time)
+
 ```
 
 
 ```{r}
-fp_df_1 |> 
-  filter(fp == 1) |> 
-  ggplot(aes(n_trial, prop, colour = fp_sum))+
-  geom_line()+
-  geom_point()+
-  scale_x_log10("Sample Size")+
-  scale_y_continuous("FWER")+
-  scale_color_discrete(name = "Method", labels = c("Raw p-values", "Bonferroni Correction","ROPE"))+
-  ggtitle("Minimising False Positves across Difference Sample Sizes")+
-  theme_minimal()
-
+## Functions to create graphs
+source(here::here("my-scripts", "R", "eeg_rope_graphs.R"))
 ```
 
-```{r}
-fp_df_2 |> 
-  filter(fp == 1) |> 
-  ggplot(aes(n_trial, prop, colour = fp_sum))+
-  geom_line()+
-  geom_point()+
-  scale_x_log10("Sample Size")+
-  scale_y_continuous("FWER")+
-  scale_color_discrete(name = "Method", labels = c("Raw p-values", "Bonferroni Correction","ROPE"))+
-  ggtitle("Minimising False Positves across Difference Sample Sizes")+
-  theme_minimal()
+
+```{r, warning=F}
+eval_rope_g1 <- eval_rope_1 |> 
+  fp_graphs(effect = T)
+```
+
+```{r,  eval = F, include=F}
+# Code to save each graph
+
+plots <- list()
+
+for(i in 1:length(eval_rope_g1)){
+  
+  filename <- paste("ch4_fp_rope_eff_", i ,".png",sep="")
+  ggsave(plot = eval_rope_g1[[i]], file = here::here("images", filename), width = 10, height = 8, dpi = 360)
+}
+```
+
+
+```{r, warning=F}
+eval_rope_g2 <- eval_rope_2 |> 
+  fp_graphs(effect = F)
+```
+
+```{r,  eval = F, include=F}
+# Code to save each graph
+
+plots <- list()
+
+for(i in 1:length(eval_rope_g2)){
+  
+  filename <- paste("ch4_fp_rope_no_eff_", i ,".png",sep="")
+  ggsave(plot = eval_rope_g2[[i]], file = here::here("images", filename), width = 10, height = 8, dpi = 360)
+}
 ```
 
 Raw p-values are going to generate false positives, which is expected after doing around 400 t-tests. The ROPE does seem to catch some of these, as if the Confidence interval overlaps with the ROPE, then we don't conclude it is a significant difference and without a decision. However, bonferroni corrected p-values seems to be prefect as controlling for false positives, which is probably because of the multivariate approach used in the analysis. IF the EEG was analysed with the mean amplitude then bonferroni correction will start to resemble the raw p values, and hopefully the ROPE will still be effect. 
+
+### Evaluating the True Positives with respect to no ROPE, and the different types of ROPEs
+
+Whilst minimising False positives is desirable, we can achieve a false positive rate of zero by sacrificing our ability to detect meaningful statistical differences. This is the classic issue of Sensitivity vs Specificity. For example, if we set the margins of a ROPE to -10 and +10, we would have no False Positive because every value is inside that ROPE, so we would have no True positives. 
+
+
+```{r}
+eval_rope_g3 <- eval_rope_1 |> 
+  tp_graphs()
+```
+
+```{r,  eval = F, include=F}
+# Code to save each graph
+
+plots <- list()
+
+for(i in 1:length(eval_rope_g3)){
+  
+  filename <- paste("ch4_tp_rope_eff_", i ,".png",sep="")
+  ggsave(plot = eval_rope_g3[[i]], file = here::here("images", filename), width = 10, height = 8, dpi = 360)
+}
+```
+
+```{r}
+# auc_df <- eval_rope_df |>
+#   inner_join(tp_df_1, by = c("n_trial", "rope"))
+
+## Not as neat as I expected - maybe we need more values or the data is not properly formatted?
+# eval_rope_1|>
+#   filter(n_trial != 10) |>
+#   ggplot(aes(x = fpr, y = tpr, colour = rope))+
+#   geom_line()+
+#   theme_minimal()
+```
+
 
 Next steps:
 Repeat pipeline to get smooth curves and long-term behaviour of the various methods
 Repeat pipeline but analyse data using mean amplitude instead of t-tests at every time point
 Add references to Laken's and Kruschke's work, tidy up unprofessional language. 
 
+# Overview of Chapter 2 - Mean Amplitude Approach
 
+
+```{r}
+alpha = 0.05 ## Standard Alpha Level for Significance Testing
+seed = 1 # set.seed(1)
+static_margins = c(0.3, 0.2, 0.1) # static margins for NUll ROPE
+
+## defining region where peak occurs - used to find mean amplitude
+effect_time <- c(true_onset - stim_on, true_onset + 200 - freq - stim_on)
+time_cond <- expression((time < effect_time[1] | time > effect_time[2]))
+```
+
+```{r}
+## Process to proform anovas on each set of n_trial for both conditions
+peak_anova_df_1 <- sim_df_1 |> 
+  select(1:4) |>  # removing columns that are used for Multivarient Approach
+  mutate(in_effect = if_else(!eval(time_cond), 1, 0)) |> 
+  pivot_longer(cols = starts_with("mn_cond"), names_to = "cond", values_to = "value") |> 
+  mutate(cond = as.factor(cond)) |> 
+  filter(!eval(time_cond)) |> 
+  nest(data = -n_trial) |> 
+  mutate(model = map(.x = data, ~ anova(lm(value ~ cond, .))), 
+         tidy = map(model, broom::tidy)) |> 
+  select(n_trial, tidy) |> 
+  unnest(cols = c(tidy))
+```
+
+
+```{r}
+# 
+# peak_df_1 <- sim_df_1 |> 
+#   select(1:5) |>  # removing columns that are used for Multivarient Approach
+#   mutate(in_effect = if_else(!eval(time_cond), 1, 0)) |> 
+#   group_by(n_trial, in_effect) |> 
+#   summarise(
+#     mn_peak = mean(mn_diff, na.rm = T),
+#     mn_peak_t1 = mean(mn_diff, na.rm = T, trim = .2),
+#     mn_peak_t1 = mean(mn_diff, na.rm = T, trim = .1),
+#     mn_peak_t5 = mean(mn_diff, na.rm = T, trim = .05),
+#     sd_peak = sd(mn_diff, na.rm = T), 
+#     .groups = "drop"
+#     ) |> 
+#   pivot_longer(cols = contains("mn_"), 
+#                names_to = "mean_type", 
+#                values_to = "value")
+  
+peak_df_1 <- sim_df_1 |> 
+  select(1:4) |>  
+  mutate(in_effect = if_else(!eval(time_cond), 1, 0)) |>
+    dplyr::group_by(n_trial, in_effect) |> 
+    dplyr::summarise(
+      mn_peak_cond1 = mean(mn_cond1),
+      mn_peak_cond2 = mean(mn_cond2),
+      mn_diff = mn_peak_cond2 - mn_peak_cond1,
+      p = t.test(mn_cond1, mn_cond2)[["p.value"]],
+      ci_l = t.test(mn_cond2, mn_cond1, conf.level = 1 - alpha, alternative = "two.sided")[["conf.int"]][1],
+      ci_u = t.test(mn_cond2, mn_cond1, conf.level = 1 - alpha, alternative = "two.sided")[["conf.int"]][2],
+      .groups = "drop"
+    ) |> 
+    dplyr::group_by(n_trial) |>
+    dplyr::mutate(raw_sig = dplyr::if_else(p < alpha, min(ci_l), NULL)) |>  # just so the graph has a line at zero to show significance
+    dplyr::ungroup()
+
+
+
+#   
+# sim_df_2 |> 
+#   select(1:5) # removing columns that are used for Multivarient Approach
+#   
+peak_df_1
+```
+
+
+```{r}
+peak_df_1 |> 
+  filter(in_effect == 1) |> 
+  ggplot(aes(n_trial, group = n_trial))+
+  geom_point(aes(y = mn_peak_cond1), colour = line_colours[1], shape = 15)+
+  geom_point(aes(y = mn_peak_cond2), colour = line_colours[2], shape = 15)+
+  geom_hline(aes(yintercept = 0), size = 1.05)+
+  ggtitle("Mean Amplitude of ERP Peaks in two Conditions")+ 
+  labs(subtitle = glue::glue("Conditions:, 
+                            <b><span style='color:{line_colours[1]};'>Control Group </span></b>and 
+                            <b><span style='color:{line_colours[2]};'>Alternative</span></b>"))+
+  scale_y_continuous("Mean Amplitude (mV)")+
+  scale_x_continuous("Sample Size")
+  # geom_point(aes(y = mn_diff), colour = "grey", shape = 15)
+  # geom_errorbar(aes(ymin = mn_peak_cond2 - ci_l, ymax = mn_diff + ci_u), colour = line_colours[2])
+
+# ggsave(filename = here::here("images", "ch4_mean_peak_1.png"), width = 10, height = 8, dpi = 360)
+
+peak_df_1 |> 
+  filter(in_effect == 1) |> 
+  ggplot(aes(n_trial, group = n_trial))+
+  geom_point(aes(y = mn_diff), colour = line_colours[1], shape = 15)+
+  geom_errorbar(aes(ymin = mn_diff - abs(ci_l), ymax = mn_diff + abs(ci_u)), colour = line_colours[1], width = 5)+
+  # geom_point(aes(y = mn_peak_cond2), colour = line_colours[2], shape = 15)+
+  geom_hline(aes(yintercept = 0), size = 1.05)+
+  ggtitle("Mean Difference in Amplitude of ERP Peaks in Various Sample Sizes")+ 
+  scale_y_continuous("Mean Amplitude (mV)")+
+  scale_x_continuous("Sample Size")+
+  labs(subtitle = "Error Bars Represent 95% Confidence Intervals of Mean Difference")
+
+# ggsave(filename = here::here("images", "ch4_mean_peak_2.png"), width = 10, height = 8, dpi = 360)
+  
+```
 
 
 

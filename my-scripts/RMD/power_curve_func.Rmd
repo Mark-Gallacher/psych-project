@@ -1,0 +1,79 @@
+---
+title: "power curve function"
+output: html_document
+date: "2022-09-30"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+power_calc_sim <- function(sample_size, 
+                           alpha_level = 0.05, 
+                           effect_size, 
+                           power, 
+                           many_alphas = NULL, 
+                           many_power = NULL){
+  library(tidyverse)
+  library(pwr)
+  
+  if (!is.null(sample_size)){
+    .sample <- seq(5,sample_size,(sample_size/(sample_size/10)))
+    .n_sample <- length(.sample)
+  }else{
+    .sample = sample_size
+  }
+  if (!is.null(alpha_level) && !is.null(many_alphas)){
+    .alpha <- seq(alpha_level/100, alpha_level,(alpha_level/10))
+    .n_aplha <- length(.alpha)
+  }else{
+    .alpha = alpha_level
+  }
+  if (!is.null(effect_size)){
+    .effect <- seq(0.1,effect_size,0.1)
+    .n_effect <- length(.effect)
+  }
+  if (!is.null(power) && !is.null(many_power)){
+    .power <- seq(0.1,power,0.1)
+    .n_power <- length(.power)
+  }else{
+    .power <- power
+  }
+  
+  output <- array(NA, dim = c(.n_sample, .n_effect))
+  
+  for (i in 1:.n_sample){
+    for(j in 1:.n_effect){
+
+         output[i, j] <-  pwr.t.test(n = .sample[i],
+                                    sig.level = .alpha,
+                                    d = .effect[j],
+                                    power = .power)$power
+        
+      
+         }
+      
+  }
+  
+return_this <- tibble(pwr = as.vector(output),
+                     n_size = rep(.sample, .n_effect),
+                     effect = factor(rep(.effect, each = .n_sample)))
+
+return(return_this)
+}
+```
+
+
+```{r}
+a <- power_calc_sim(sample_size = 5000, 0.05, 0.8, NULL)
+```
+
+```{r}
+a |> 
+  ggplot(aes(x = n_size, y = pwr, colour = effect))+
+  geom_line()+
+  scale_x_log10()+
+  theme_minimal()
+```
+

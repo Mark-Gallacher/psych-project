@@ -1,0 +1,111 @@
+---
+title: "power-calc-manual"
+output: html_document
+date: "2022-10-04"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+
+power_calc <- function(n1, n2, mu1, mu2, sd1, sd2, alpha){
+
+alpha   <- alpha
+df    <- n1+n2 - 2                       # degrees of freedom
+cv    <- qt(1-alpha, df)                 # crit. value for one-sided test (under the null)
+muDiff  <- mu2-mu1                       # true difference in means
+sigDiff <- sqrt((sd1^2/n1) + (sd2^2/n2)) # true SD for difference in empirical means
+ncp     <- muDiff / sigDiff              # noncentrality parameter (under alternative)
+power <- 1-pt(cv, df, ncp)               # power
+
+
+# out <- c(big_tail + little_tail)
+return(c(power, ncp, cv, df))
+}
+
+
+cohen_calc <- function(mu1, mu2, sd1, sd2){
+  
+p_sd = sqrt((sd1^2 + sd2^2)/2)
+d = (mu2 - mu1)/p_sd
+  
+return(d)
+}
+```
+
+```{r}
+library(pwr)
+
+
+n = 100
+mu1 = 40
+mu2 = 50
+sd1 = 20
+sd2 = 22
+alpha = 0.05
+
+d <- cohen_calc(mu1,mu2, sd1,sd2)
+
+
+power_calc(n, n, mu1, mu2, sd1, sd2, alpha)
+pwr.t.test(n = n, sig.level = alpha, d = d, alternative = "greater")
+
+
+```
+
+```{r}
+crit <- power_calc(n, n, mu1, mu2, sd1, sd2, alpha)
+
+
+x <- seq(-5,5,length = 500)
+t <- dt(x, crit[4])
+t_ncp <- dt(x, crit[4], crit[2])
+
+df <- tibble(x = x,
+             t = t,
+             t_ncp = t_ncp)
+
+df_ordered <- df |>
+  mutate(prob = cumsum(t))
+
+df_ordered |> 
+  ggplot(aes(x, t))+
+  geom_line(size = 1.5, colour ="darkblue")+
+  geom_area(aes(x = ifelse(x < -crit[3]|x>crit[3] , x, -crit[3])), 
+            fill = "blue",alpha = .3
+            ) +
+  geom_line(aes(y = prob/100), colour = "pink", size = 1.5) +
+  geom_line(aes(y = t_ncp), colour = "lightblue", size = 1.5) +
+  ylim(0,.51)+
+  theme_minimal()
+
+
+```
+
+
+```{r}
+sum = 0
+x_values = array(0, length(t))
+
+
+for (i in 1:length(t)){
+  while(sum + df_ordered$t[i] < 90){
+    
+    sum = sum + df_ordered$t[i]
+    
+    x_values[i] <-  df_ordered[i,1]
+  }
+}
+```
+
+```{r}
+rds <- readRDS("./linde_nonstd_216.rds")
+```
+
+
+
+
+
+

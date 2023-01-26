@@ -108,7 +108,7 @@ knitr::kable(x = head(es_by_pwr_df, n = 10))
 ###  Plotting Effect Size Curves
 
 ```{r}
-es_by_pwr_df |> 
+eff_power_g1 <- es_by_pwr_df |> 
   ggplot(aes(x = n, y = effect_size, colour = power))+
   geom_line(alpha = 0.5, size = 1.5)+
   scale_x_log10(name = "Sample Size")+
@@ -116,6 +116,10 @@ es_by_pwr_df |>
   guides(colour = guide_legend(title = "Power"))+
   ggtitle("Effect Size vs Sample Size, for different Powers")+
   theme_minimal()
+
+eff_power_g1
+
+ggsave(plot = eff_power_g1, filename = "effect_power_graph.png", path = here::here("images"), dpi = 320, width = 10, height = 8)
 ```
 
 ---
@@ -629,7 +633,7 @@ result_tibble_3 |>
 ## Sequential Testing - False Positives in NHST
 ### 1000 t-tests, at sample size generated from normal distribtuion with same mean and size of 5 to 5000, each ran 1000 times.
 ```{r, message=FALSE}
-source(file = here::here("my-scripts", "t_test_loop_functions.R"))
+source(file = here::here("my-scripts/R", "t_test_loop_functions.R"))
 
 ## See my-scripts/generate_t_test_pvals to see how these dataframes were populated
 p_vals_tost_break <- read_csv(file = here::here("./sim_data/p_vals_tost_break.csv"))
@@ -655,7 +659,7 @@ knitr::kable(x = head(p_vals_tost_break_small_alpha_df, n = 10))
 ```{r,fig.height= 8, fig.width= 12}
 p_vals_tost_break_df |> 
   ggplot()+
-  geom_line(aes(x = n, y =  prop ), size = 1, colour = "lightgrey")+
+  geom_line(aes(x = n, y =  prop), size = 1, colour = "lightgrey")+
   # geom_line(aes(x = n, y =  prop ), data = p_vals_tost_break_small_alpha_df, size = 1, colour = "skyblue")+
   geom_line(aes(x = n, y = 1 - prop), size = 1, colour = "black")+
   # geom_line(aes(x = n, y = 1 - prop), data = p_vals_tost_break_small_alpha_df, size = 1, colour = "deepskyblue4")+

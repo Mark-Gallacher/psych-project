@@ -1,20 +1,31 @@
 
 # Might be Better to use get_mean_diff, as the output is more detailed
 # We can do more things with the data from it
+# 
+#  PLEASE NOTE ALL THE SAMPLES INCREMENT IN 5s by default 
+
+increment <-  5
+
+
 get_pvals <- function(sample_size, break_loop = TRUE, alpha = 0.05){
   library(tidyverse)
   
   len_n <- length(sample_size)
   p_val_vector <- array(NA, dim = len_n)
   var <- "p.value"
+  g1_sample <- c()
+  g2_sample <- c()
   
   for (i in 1:len_n){
-    p_val_vector[i] <- t.test(
-      rnorm( sample_size[i] ), 
-      rnorm( sample_size[i] ), 
+    g1_sample <- c(g1_sample, rnorm(increment, mean = 0))
+    g2_sample <- c(g2_sample, rnorm(increment, mean = 0 + mean_diff))
+    
+    t_test <- t.test(
+      g1_sample, 
+      g2_sample, 
       alternative = "two.sided", 
       conf.level = 1 - alpha, 
-      var.equal = TRUE)[[var]]
+      var.equal = TRUE)
     
     if (p_val_vector[i] < alpha & break_loop){
       break
@@ -30,9 +41,13 @@ get_pvals_one_sample <- function(sample_size, break_loop = TRUE, alpha = 0.05){
   p_val_vector <- array(NA, dim = len_n)
   var <- "p.value"
   
+  sample <- c()
+  
   for (i in 1:len_n){
+    sample <- c(sample, rnorm(increment))
+    
     p_val_vector[i] <- t.test(
-      rnorm( sample_size[i] ), 
+      sample, 
       alternative = "two.sided", 
       conf.level = 1 - alpha, 
       var.equal = TRUE)[[var]]
@@ -64,10 +79,19 @@ get_mean_diff <- function(sample_size,
   mean <- "estimate"
   ci <- "conf.int"
   
+  # empty lists for samples
+  g1_sample = c()
+  g2_sample = c()
+  
   for (i in 1:len_n){
+    ## Sample for group 1 and 2
+    ## Increment of 5s
+    g1_sample <- c(g1_sample, rnorm(increment, mean = 0))
+    g2_sample <- c(g2_sample, rnorm(increment, mean = 0 + mean_diff))
+    
     t_test <- t.test(
-      rnorm( sample_size[i], mean = 0 ), 
-      rnorm( sample_size[i], mean = 0 + mean_diff), 
+      g1_sample, 
+      g2_sample, 
       alternative = "two.sided", 
       conf.level = 1 - alpha, 
       var.equal = TRUE)
@@ -77,7 +101,10 @@ get_mean_diff <- function(sample_size,
       
       if(use_rope){ # check if we are using a rope
         
-        if(mean_diff > margin){ # check if difference is bigger than rope
+        if(
+          (t_test[[ci]][[1]] > margin) | (t_test[[ci]][[2]] < -margin)
+          ){ # check if difference is bigger than rope
+          ## If lower ci is above or upper ci is below, then we are completely outside rope
           
         p_vector[i] <- t_test[[p]]
         mean_diff_vector[i] <- mean_diff
@@ -119,10 +146,12 @@ ttest_fast_loop <- function(sample_size,
   mean <- "estimate"
   ci <- "conf.int"
   
+  s1 <- s2 <- c()
+  
   output <-  foreach::foreach (s = 1:len_n, .combine = "rbind") %dopar%{
     # generate sample
-    s1 = rnorm(sample_size[s], mean = 0, sd = 1)
-    s2 = rnorm(sample_size[s], mean = 0 + mean_diff, sd = 1)
+    s1 = c(s1, rnorm(increment, mean = 0, sd = 1))
+    s2 = c(s2, rnorm(increment, mean = 0 + mean_diff, sd = 1))
     
     # t test between two samples
     t_test <- t.test(s1, s2, 
@@ -166,8 +195,8 @@ bf_ttest_fast_loop <- function(sample_size, mean_diff = 0, nullInterval = NULL){
   
   output <-  foreach::foreach (s = 1:len_n, .combine = "rbind") %dopar%{
     # generate sample
-    s1 = rnorm(sample_size[s], mean = 0, sd = 1)
-    s2 = rnorm(sample_size[s], mean = 0 + mean_diff, sd = 1)
+    s1 = c(s1, rnorm(increment, mean = 0, sd = 1))
+    s2 = c(s2, rnorm(increment, mean = 0 + mean_diff, sd = 1))
     
     # t test between two samples
     bf <- BayesFactor::ttestBF(s1, s2, nullInterval = nullInterval)

@@ -13,7 +13,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ### **Chapter 0** : Setting up some Parametres and Loading in Librarys + Functions 
 ```{r}
 library(tidyverse)
-source(file = here::here("my-scripts", "t_test_loop_functions.R"))
+source(file = here::here("my-scripts", "R", "t_test_loop_functions.R"))
 
 n = seq(5, 5000, length.out = 1000)
 l_n = length(n)
@@ -95,7 +95,7 @@ seq_t_test_many_alphas_rope_m_df <- seq_t_test_many_alphas_rope_m |>
   group_by(margin) |> 
   summarise(prop = cumsum(failed), 
             .groups = "drop") |> 
-  mutate(n = as.integer(rep(n*2, times = l_a)))
+  mutate(n = as.integer(rep(n*2, times = l_margins)))
 
 head(seq_t_test_many_alphas_rope_m_df)
 ```
@@ -208,8 +208,8 @@ Note: "count" represents how many tests passed at a given point, then prop gives
 
 ```{r}
 seq_t_test_many_alphas_mean <- 
-  read_csv(file = here::here("sim_data","seq_t_test_many_alphas_mean_break.csv"), show_col_types = F) |> 
-  select(1, 2, 5:8) # the other columns are not necessary here
+  read_csv(file = here::here("sim_data","seq_t_test_many_alphas_mean_break.csv"), show_col_types = F) 
+  # select(1, 2, 5:8) # the other columns are not necessary here ??
   
 head(seq_t_test_many_alphas_mean)
 ```
