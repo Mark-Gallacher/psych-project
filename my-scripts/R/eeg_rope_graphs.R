@@ -10,14 +10,14 @@ theme_set(theme_project_light())
 
 ## Red/ Blue Palette - Troy palette from MetBrewer
 # troy_palette <- c("#421401", "#6c1d0e", "#8b3a2b", "#c27668", "#7ba0b4", "#44728c", "#235070", "#0a2d46")
-# Tam palette from MetBrewer
+# # Tam palette from MetBrewer
 # tam_palette <- c("#ffd353", "#ffb242", "#ef8737", "#de4f33", "#bb292c", "#9f2d55", "#62205f", "#341648")
-# Renoir from MetBrewer
+# # Renoir from MetBrewer
 # renoir <- c("#17154f", "#2f357c", "#6c5d9e", "#9d9cd5", "#b0799a", "#f6b3b0", "#e48171", "#bf3729", "#e69b00", "#f5bb50", "#ada43b", "#355828")
 # line_colours <- grDevices::colorRampPalette(palette)(8)
 # the demo shows 8 colours and the second and second last ones are my favourite
 
-line_colours <- c("#2f357c", "#bf3729")
+line_colours <- c("#2f357c", "#bf3729", "#235070")
 # colours for the lines of significance
 sig_colours <-  c("deepskyblue4", "darkblue")
 # grey for ci range - fill
@@ -170,21 +170,18 @@ plot_base <- function(df){
     ggplot(aes(x = time)) +
     geom_line(aes(y = mn_cond1), colour = line_colours[1], alpha = line_alpha, size = line_size) +
     geom_line(aes(y = mn_cond2), colour = line_colours[2], alpha = line_alpha, size = line_size) +
-    geom_line(aes(y = mn_diff), colour = "black",alpha = line_alpha, size = line_size) +
+    geom_line(aes(y = mn_cond3), colour = line_colours[3],alpha = line_alpha, size = line_size) +
     geom_vline(xintercept = 0, colour = grey)+
     geom_hline(yintercept = 0, colour = grey)+
-    geom_line(aes(y = raw_sig - 0.1), size = line_size, colour = sig_colours[1])+
-    geom_line(aes(y = bon_sig), size = line_size, colour = sig_colours[2])+
-    geom_ribbon(aes(ymax = ci_u, ymin = ci_l), alpha = fill_alpha, fill = grey)+
+    geom_line(aes(y = raw_13_sig - 0.1), size = line_size, colour = sig_colours[1])+
+    geom_line(aes(y = bon_13_sig), size = line_size, colour = sig_colours[2])+
+    # geom_ribbon(aes(ymax = ci_u, ymin = ci_l), alpha = fill_alpha, fill = grey)+
     facet_wrap(~n_trial, scale = "free_y")+
     scale_x_continuous("Time (ms)")+
     scale_y_continuous("")+
     labs(title = glue::glue(
       "<b>ERP Mean Values across Time with 
-         <span style='color:{grey};'>95% Confidence Intervals</span> for Various Sample Sizes</b><br>
-         <i><span style='color:#000000;'>Mean Difference</span> ,
-         <span style='color:{line_colours[1]};'>Condition 1</span> and
-         <span style='color:{line_colours[2]};'>Condition 2</span></i>"))
+         <span style='color:{grey};'>95% Confidence Intervals</span> for Various Sample Sizes</b><br>"))
   
   
   return(p)

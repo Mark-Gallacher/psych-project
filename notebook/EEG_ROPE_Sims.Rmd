@@ -42,17 +42,22 @@ Nf <- length(Xf)   ## Number of timepoints
 # Template one only contains zeros
 temp1 <- vector(mode = "numeric", length = Nf)  
 
+# define magnitude of large effect
+magnit <- 2
+
 # Generate ERP Peak
 erp <- dnorm(seq(-1.5, 1.5, length.out= 200/freq), 0, 1)
 erp <- erp - min(erp)
-erp <- erp / max(erp)
+erp_small <- erp / max(erp)
+erp_large <- magnit*erp_small
 
 # Getting length and storing them for later use
 l_erp <- length(erp)
 l_pre_stim <- ceiling(true_onset / freq)
 
 # Template 2 contains the ERP peak
-temp2 <- c(rep(0, l_pre_stim), erp, rep(0, (Nf - l_erp - l_pre_stim)))
+temp1 <- c(rep(0, l_pre_stim), erp_small, rep(0, (Nf - l_erp - l_pre_stim)))
+temp2 <- c(rep(0, l_pre_stim), erp_large, rep(0, (Nf - l_erp - l_pre_stim)))
 ```
 
 #### Visualising the ERP Peak 
@@ -60,11 +65,12 @@ temp2 <- c(rep(0, l_pre_stim), erp, rep(0, (Nf - l_erp - l_pre_stim)))
 tibble(x = Xf, y = temp2) |> 
   ggplot(aes(x, y)) +
   geom_line()+
-  annotate("rect", xmin = true_onset, xmax = (true_onset+200)-freq, ymin = 0, ymax = 1, alpha = .5, fill = "forestgreen")+
-  annotate("rect", xmax = true_onset, xmin = 0, ymin = 0, ymax = 1, alpha = .3)+
-  annotate("rect", xmax = max_time, xmin = (true_onset+200)-freq, ymin = 0, ymax = 1, alpha = .3)+
-  annotate("text", label = "Null Hypothesis", x = 10, y = .95, hjust = 0)+
-  annotate("text", label = "Alternative Hypothesis", x = true_onset, y = .95, hjust = 0, colour = "forestgreen")+
+  geom_line(aes(y = temp1))+
+  annotate("rect", xmin = true_onset, xmax = (true_onset+200)-freq, ymin = 0, ymax = magnit, alpha = .5, fill = "forestgreen")+
+  annotate("rect", xmax = true_onset, xmin = 0, ymin = 0, ymax = magnit, alpha = .3)+
+  annotate("rect", xmax = max_time, xmin = (true_onset+200)-freq, ymin = 0, ymax = magnit, alpha = .3)+
+  annotate("text", label = "Null Hypothesis", x = 10, y = magnit * .97, hjust = 0)+
+  annotate("text", label = "Alternative Hypothesis", x = true_onset, y = magnit * .97, hjust = 0, colour = "forestgreen")+
   theme_minimal()+
   scale_y_continuous("Time (ms)", expand = c(0,0))
 ```
@@ -79,6 +85,9 @@ outvar <- 1 # noise variance
 alpha = 0.05 ## Standard Alpha Level for Significance Testing
 seed = 1 # set.seed(1)
 static_margins = c(0.3, 0.2, 0.1) # static margins for NUll ROPE
+
+effect_time <- c(true_onset - stim_on, true_onset + 200 - freq - stim_on)
+time_cond <- expression((time < effect_time[1] | time > effect_time[2]))
 
 
 ## Effect Present in template 2 (temp2)
@@ -134,6 +143,7 @@ p1 <- sim_df_1 |>
                             <b><span style='color:{sig_colours[2]};'>Bonferroni Corrected</span></b>"))
 
 # ggsave(plot = p1, filename = here::here("images", "ch4_rope_eff_plain.png"), width = 10, height = 8, dpi = 360)
+p1
 ```
 
 ### Part Two -  Define Nulls ROPEs

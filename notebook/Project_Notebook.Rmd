@@ -23,7 +23,7 @@ library(TOSTER) # for TOST equivalance testing
 # to get optim_equiv function (equivalance testing - (Campbell & Gustafson, 2022))
 source(here::here("other-scripts", "optim_equiv_func.R"))
 # to get functions to do for-loops for power calculations, see script for details
-source(here::here("my-scripts", "pwr_calc_functions.R"))  
+source(here::here("my-scripts", "R", "pwr_calc_functions.R"))  
 ```
 # Chapter 1 - How Power and Effect relate to a *Static* alpha level, for a given Sample Size
 

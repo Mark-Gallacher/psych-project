@@ -34,36 +34,52 @@ generate_raw_egg <- function(num_trials,        ## Vector or List containing siz
                              stim_onset = 0, 
                              seed = 1){
   
-  set.seed(seed)
+  seed = seed
   # create empty list to store df for condtions
   c_dfs <- list()
   
   for (i in 1:length(num_trials)) {
     
-    cond1 <- matrix(0, nrow = num_trials[i], ncol = num_time_points)
-    cond2 <- matrix(0, nrow = num_trials[i], ncol = num_time_points)
+    # empty matrix for all three conditions
+    cond1 <- cond2 <- cond3 <- matrix(0, nrow = num_trials[i], ncol = num_time_points)
     
     # generate trials given the number of trials
     for(t in 1:num_trials[i]){
       
       # row = trial, col = time point
-      cond2[t,] <- cond2_base + one_over_f(gamma = gamma_spec_power, num_time_points, outvar = noise_var)
+      # small effect
       cond1[t,] <- cond1_base + one_over_f(gamma = gamma_spec_power, num_time_points, outvar = noise_var)  
+      cond2[t,] <- cond1_base + one_over_f(gamma = gamma_spec_power, num_time_points, outvar = noise_var)
+      # large effect
+      cond3[t,] <- cond2_base + one_over_f(gamma = gamma_spec_power, num_time_points, outvar = noise_var)
       
     }
     
     
     # store as tibble where cols = time, rows = trials
-    c1_df <- pivot_raw_eeg(cond1, max_time, max_time/ (num_time_points - 1), stim_onset = stim_onset) |> 
+    c1_df <- pivot_raw_eeg(df = cond1, 
+                           max_time = max_time, 
+                           freq = max_time/ (num_time_points - 1), 
+                           stim_onset = stim_onset) |> 
       dplyr::mutate(n_trial = num_trials[i], 
              cond = "cond1")
     
-    c2_df <- pivot_raw_eeg(cond2, max_time, max_time/ (num_time_points - 1), stim_onset = stim_onset)|> 
+    c2_df <- pivot_raw_eeg(df = cond2, 
+                           max_time = max_time, 
+                           freq = max_time/ (num_time_points - 1), 
+                           stim_onset = stim_onset)|> 
       dplyr::mutate(n_trial = num_trials[i],
              cond = "cond2")
     
+    c3_df <- pivot_raw_eeg(df = cond3, 
+                           max_time = max_time, 
+                           freq = max_time/ (num_time_points - 1), 
+                           stim_onset = stim_onset)|> 
+      dplyr::mutate(n_trial = num_trials[i],
+                    cond = "cond3")
+    
     ## storing combined dfs to then bind after loop
-    c_dfs[[i]] <- dplyr::bind_rows(c1_df, c2_df)
+    c_dfs[[i]] <- dplyr::bind_rows(c1_df, c2_df, c3_df)
     
   }
   
@@ -84,8 +100,10 @@ pivot_raw_eeg <- function(df, max_time, freq, stim_onset = 0){
     tidyr::pivot_longer(cols = dplyr::everything(), 
                  names_to = "time", 
                  values_to = "value") |> 
-    dplyr::mutate(time = as.integer(time),
-           time = time - stim_onset)
+    dplyr::mutate(
+      time = as.integer(time),
+      time = time - stim_onset
+      )
   
   return(output)
   
@@ -97,6 +115,12 @@ pivot_raw_eeg <- function(df, max_time, freq, stim_onset = 0){
 get_stats_from_raw <- function(df, alpha = 0.05){
   
   
+  # Columns with 12 or 13 in name refers to the groups, 
+  # mean_diff_12 = mean diff between group 1 and group 2 
+  # ie temp1 and temp2, cond1 and cond2
+  # So mean_diff_13 = mean diff between cond1 and cond3
+  
+  
   output <- df |>  
     tidyr::pivot_wider(names_from = cond, 
                 values_from = value, 
@@ -105,17 +129,34 @@ get_stats_from_raw <- function(df, alpha = 0.05){
     tidyr::unnest(cols = where(is.list)) |> 
     dplyr::group_by(time, n_trial) |> 
     dplyr::summarise(
-      mn_cond1 = mean(cond1),
-      mn_cond2 = mean(cond2),
-      mn_diff = mn_cond2 - mn_cond1,
-      p = t.test(cond1, cond2)[["p.value"]],
-      ci_l = t.test(cond2, cond1, conf.level = 1 - alpha, alternative = "two.sided")[["conf.int"]][1],
-      ci_u = t.test(cond2, cond1, conf.level = 1 - alpha, alternative = "two.sided")[["conf.int"]][2],
+      # mean values at each timepoint for each condition
+      mn_cond1 = mean(cond1, na.rm = T),
+      mn_cond2 = mean(cond2, na.rm = T),
+      mn_cond3 = mean(cond3, na.rm = T),
+      # sd at each timepoint for each condition
+      sd_cond1 = sd(cond1, na.rm = T),
+      sd_cond2 = sd(cond2, na.rm = T),
+      sd_cond3 = sd(cond3, na.rm = T),
+      # mean difference
+      mn_diff_12 = mn_cond2 - mn_cond1,
+      mn_diff_13 = mn_cond3 - mn_cond1,
+      # p-values and t-values
+      p_12 = t.test(cond2, cond1)[["p.value"]],
+      p_13 = t.test(cond3, cond1)[["p.value"]],
+      t_12 = t.test(cond2, cond1)[["statistic"]][[1]],
+      t_13 = t.test(cond3, cond1)[["statistic"]][[1]],
+      # 95% confidence intervals, alpha was 0.05
+      ci_12_l = t.test(cond2, cond1, conf.level = 1 - alpha, alternative = "two.sided")[["conf.int"]][1],
+      ci_12_u = t.test(cond2, cond1, conf.level = 1 - alpha, alternative = "two.sided")[["conf.int"]][2],
+      ci_13_l = t.test(cond3, cond1, conf.level = 1 - alpha, alternative = "two.sided")[["conf.int"]][1],
+      ci_13_u = t.test(cond3, cond1, conf.level = 1 - alpha, alternative = "two.sided")[["conf.int"]][2],
       .groups = "drop"
     )|>
     dplyr::group_by(n_trial) |>
-    dplyr::mutate(bon_sig = dplyr::if_else(p < alpha/length(unique(time)), min(ci_l), NULL),
-           raw_sig = dplyr::if_else(p < alpha, min(ci_l), NULL)) |>  # just so the graph has a line at zero to show significance
+    dplyr::mutate(
+      bon_13_sig = dplyr::if_else(p_13 < alpha/length(unique(time)), min(ci_13_l), NULL),
+      raw_13_sig = dplyr::if_else(p_13 < alpha, min(ci_13_l), NULL)
+      ) |>  # just so the graph has a line at zero to show significance
     dplyr::ungroup()
   
   
@@ -131,35 +172,36 @@ get_eeg_rope <- function(df, alpha = 0.05, num_time_points, i = 0, static_margin
   ## Quantile range for pre-stim
   nu_prestim <- quantile(x =  df |> 
                            dplyr::filter(time < 0) |> 
-                           dplyr::pull(mn_cond1, mn_cond2) |> 
+                           dplyr::pull(mn_diff_12) |> 
                            as.vector(), 
                          probs = c(2*alpha, (1-2*alpha)))
   
   ## Quantile range for pre-stim
   nu_control <- quantile(x =  df |> 
-                           dplyr::pull(mn_cond2) |> 
+                           dplyr::filter(!eval(time_cond)) |>
+                           dplyr::pull(mn_diff_12) |> 
                            as.vector(), 
                          probs = c(2*alpha, (1-2*alpha)))
   
   ## Quantile range for non-significant mean difference
   nu_nonsig <- quantile(x = df |> 
-                          dplyr::filter(p > alpha) |> 
-                          dplyr::pull(mn_diff) |> 
+                          dplyr::filter(p_12 > alpha) |> 
+                          dplyr::pull(mn_diff_12) |> 
                           as.vector(), 
                         probs = c(2*alpha, (1-2*alpha)))
   
   ## Minimal Effect Observable - Lakens Equivalence testing
   ## using two types of Power - Standard 0.8 and maximum for standard alpha (0.05), so 1- 0.05 = 0.95
   
-  d_8 <- pwr::pwr.t.test(n = unique(df$n_trial), sig.level = alpha, type = "two.sample", power = 0.8)$d
-  d_95 <- pwr::pwr.t.test(n = unique(df$n_trial), sig.level = alpha, type = "two.sample", power = 0.95)$d
-  
-  raw_8 <- d_8 * sd(df$mn_diff)
-  raw_95 <- d_95 * sd(df$mn_diff)
-  
-  nu_eff_8 <- c(-raw_8, raw_8)
-  nu_eff_95 <- c(-raw_95, raw_95)
-  
+  # d_8 <- pwr::pwr.t.test(n = unique(df$n_trial), sig.level = alpha, type = "two.sample", power = 0.8)$d
+  # d_95 <- pwr::pwr.t.test(n = unique(df$n_trial), sig.level = alpha, type = "two.sample", power = 0.95)$d
+  # 
+  # raw_8 <- d_8 * sd(df$mn_diff)
+  # raw_95 <- d_95 * sd(df$mn_diff)
+  # 
+  # nu_eff_8 <- c(-raw_8, raw_8)
+  # nu_eff_95 <- c(-raw_95, raw_95)
+  # 
   ## Static Range - symmetrical
   nu_static_3 <- c(-static_margins[1], static_margins[1])
   nu_static_2 <- c(-static_margins[2], static_margins[2])
@@ -168,41 +210,48 @@ get_eeg_rope <- function(df, alpha = 0.05, num_time_points, i = 0, static_margin
   ## Half distancce between max value (absolute largest mean difference) and zero, 
   ## Null ROPE is 0 to the midpoint, Alternative is midpoint to max value
   
-  nu_midinter <- c(-abs(max(df$mn_diff)/2), abs(max(df$mn_diff)/2))
+  # nu_midinter <- c(-abs(max(df$mn_diff)/2), abs(max(df$mn_diff)/2))
   
   # Store values in tibble to later be combined with eeg_df
   nu_colnames <- c("nu_prestim", "nu_control", "nu_nonsig", 
-                   "nu_eff_8", "nu_eff_95", "nu_static_3", 
-                   "nu_static_2", "nu_static_1", "nu_midinter")
+                   #"nu_eff_8", "nu_eff_95", 
+                   "nu_static_3", "nu_static_2", "nu_static_1" 
+                   # "nu_midinter"
+                   )
   
-  nu_cols <- list(nu_prestim, nu_control, nu_nonsig, nu_eff_8, nu_eff_95, nu_static_3, nu_static_2, nu_static_1, nu_midinter)
+  nu_cols <- list(nu_prestim, nu_control, nu_nonsig, 
+                  #nu_eff_8, nu_eff_95, 
+                  nu_static_3, nu_static_2, nu_static_1 
+                  # nu_midinter
+                  )
   
   null_rope_df <- matrix(unlist(nu_cols), ncol = 2*length(nu_cols)) |> 
     tidyr::as_tibble(.name_repair = ~ paste(rep(nu_colnames, each = 2), c("min", "max"), sep = "_"))
   
   
-  #### ALTERNATIVE ROPE
+  # #### ALTERNATIVE ROPE
+  # 
+  # ## Quantile range for significant mean difference
+  # alt_quart <- quantile(x = df |> 
+  #                         dplyr::filter(p < alpha) |> 
+  #                         dplyr::pull(mn_diff) |> 
+  #                         as.vector(), 
+  #                       probs = c(2*alpha, (1-2*alpha)))
+  # 
+  # ## Quantile range for bonferroni significant mean difference
+  # alt_quart_bonf <- quantile(x = df |> 
+  #                              dplyr::filter(p < (alpha/ num_time_points)) |> 
+  #                              dplyr::pull(mn_diff) |> 
+  #                              as.vector(), 
+  #                            probs = c(2*alpha, (1-2*alpha)))
+  # 
+  # alt_colnames <- c("alt_quart", "alt_quart_bonf")
+  # alt_cols <- list(alt_quart, alt_quart_bonf)
+  # 
+  # alt_rope_df <- matrix(unlist(alt_cols), ncol = 2*length(alt_cols)) |> 
+  #   tidyr::as_tibble(.name_repair = ~ paste(rep(alt_colnames, each = 2), c("min", "max"), sep = "_"))
   
-  ## Quantile range for significant mean difference
-  alt_quart <- quantile(x = df |> 
-                          dplyr::filter(p < alpha) |> 
-                          dplyr::pull(mn_diff) |> 
-                          as.vector(), 
-                        probs = c(2*alpha, (1-2*alpha)))
-  
-  ## Quantile range for bonferroni significant mean difference
-  alt_quart_bonf <- quantile(x = df |> 
-                               dplyr::filter(p < (alpha/ num_time_points)) |> 
-                               dplyr::pull(mn_diff) |> 
-                               as.vector(), 
-                             probs = c(2*alpha, (1-2*alpha)))
-  
-  alt_colnames <- c("alt_quart", "alt_quart_bonf")
-  alt_cols <- list(alt_quart, alt_quart_bonf)
-  
-  alt_rope_df <- matrix(unlist(alt_cols), ncol = 2*length(alt_cols)) |> 
-    tidyr::as_tibble(.name_repair = ~ paste(rep(alt_colnames, each = 2), c("min", "max"), sep = "_"))
-  
-  return(dplyr::bind_cols(null_rope_df, alt_rope_df))
+  # return(dplyr::bind_cols(null_rope_df, alt_rope_df))
+  return(null_rope_df)
   
 }
