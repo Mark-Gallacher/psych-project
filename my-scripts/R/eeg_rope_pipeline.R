@@ -8,7 +8,7 @@ library(tidyverse)
 # gsp <- 0.7 # gamma spectral power
 # outvar <- 1 # noise variance
 
-source(here::here("my-scripts/R", "eeg_sim_functions.R"))
+source(here::here("my-scripts", "R", "eeg_sim_functions.R"))
 
 sim_eeg_rope_pipeline <- function(sample_size, 
                                   alpha, 
@@ -27,27 +27,34 @@ output <- list()
   
 for (i in 1:length(sample_size)){
   ## Step two - generate noise using set sample size
-  eeg_raw_df <- generate_raw_egg(num_trials = sample_size[i], 
-                                 num_time_points = num_time_points, 
-                                 max_time = max_time, 
-                                 cond1_base = cond1_base, 
-                                 cond2_base = cond2_base, 
+  eeg_raw_df <- generate_raw_egg(num_trials = sample_size[i],        
+                                 num_time_points = num_time_points,    
+                                 max_time = max_time,           
+                                 cond1_base = cond1_base,         
+                                 cond2_base = cond2_base,         
                                  gamma_spec_power = gamma_spec_power, 
-                                 noise_var = outvar, 
+                                 noise_var = noise_var, 
                                  stim_onset = stim_onset, 
-                                 seed = seed)
+                                 seed = seed
+                                 )
   
   ## Step three - analysis eeg - p values, mean diff, etc
   eeg_df <- eeg_raw_df |> 
     get_stats_from_raw(alpha = alpha)
   
   if(i == 1){  
+
     # We want to rope to be defined by the current trial but applied to the next trial
     # So the ROPEs will be saved to the following trial
     output[[i]] <- eeg_df
     
-    ## Steo four - Construct the two ropes (Null and Alt) - check if overlap?
-   rope_df <- get_eeg_rope(df = eeg_df, alpha = alpha, num_time_points = num_time_points, i = i, static_margins = static_margins)
+    ## Step four - Construct the two ropes (Null and Alt) - check if overlap?
+   rope_df <- get_eeg_rope(df = eeg_df, 
+                           alpha = alpha, 
+                           num_time_points = num_time_points, 
+                           i = i, 
+                           static_margins = static_margins
+                           )
     
   }else{  
     
@@ -56,7 +63,11 @@ for (i in 1:length(sample_size)){
       dplyr::bind_cols(rope_df)
       
     ## Create new rope_df after saving previous one - this means rope from n=25, will align with data from n=50, meaning graphs should be easier
-    rope_df <- get_eeg_rope(df = eeg_df, alpha = alpha, num_time_points = num_time_points, static_margins = static_margins)
+    rope_df <- get_eeg_rope(df = eeg_df, 
+                            alpha = alpha, 
+                            num_time_points = num_time_points, 
+                            static_margins = static_margins
+                            )
       
   }
     ## Step five - repeat with larger sample, until all sample sizes are done
@@ -65,6 +76,52 @@ for (i in 1:length(sample_size)){
 return(dplyr::bind_rows(output))
 
 }
+
+sim_repli_eeg_rope_pipeline <- function(sample_size, 
+                                        alpha, 
+                                        num_time_points, 
+                                        max_time,
+                                        cond1_base, 
+                                        cond2_base, 
+                                        gamma_spec_power = 1, 
+                                        noise_var = 1, 
+                                        stim_onset = 0, 
+                                        seed = 1, 
+                                        static_margins, 
+                                        total_experiments = 2){
+  
+  # Creating Letters to ID replications, usually focused on 2 total experiments (original and replication)
+  experiments <- LETTERS[1:total_experiments]
+  
+  output <- vector("list", length = length(experiments))
+  
+  for (i in 1:length(experiments)) {
+    
+  output[[i]] <- sim_eeg_rope_pipeline(sample_size = sample_size, 
+                        alpha = alpha, 
+                        num_time_points = num_time_points, 
+                        max_time = max_time,
+                        cond1_base = cond1_base, 
+                        cond2_base = cond2_base, 
+                        gamma_spec_power = gamma_spec_power, 
+                        noise_var = noise_var, 
+                        stim_onset = stim_onset, 
+                        seed = (seed + (i - 1)), # ensures seed is different between replication and original
+                        static_margins = static_margins
+                        ) |> 
+    mutate(experiment = experiments[i]) |> 
+    select(experiment, everything())
+    
+  }
+  return(dplyr::bind_rows(output))
+}
+
+
+
+
+
+
+
 
 tidy_rope_names <- function(df){
 
@@ -79,6 +136,13 @@ tidy_rope_names <- function(df){
 
 ## getting number of false positives, false negatives, true positives and true negatives for each rope
 ## each ROPE is then compared to the total number of fp when not using a ROPE
+
+
+
+
+
+
+
 
 eval_rope <- function(df, alpha, effect_time_vector){
   
