@@ -31,7 +31,8 @@ sample_size = c(10, 50, 100, 500, 1000, 5000, 10000)
 
 n_chains <- 4
 n_iter <- 10000
-n_warmup <- 1000
+n_warmup <- 2000
+
 ```
 
 ```{r}
@@ -101,6 +102,7 @@ for(i in 1:length(pr_list)){
 
 ```{r}
 # write_csv(models_df, file = here::here("sim_data", "bayes_models.csv"))
+
 models_df <- read_csv(here::here("sim_data", "bayes_models.csv"))
 ```
 
@@ -112,14 +114,16 @@ models_df <- read_csv(here::here("sim_data", "bayes_models.csv"))
 
 models_df |> 
   ggplot(aes(b_yB))+
-  geom_density(aes(colour = as.factor(prior), fill = as.factor(prior)), size = .1, alpha = .3)+
+  geom_density(aes(colour = as.factor(prior), fill = as.factor(prior)), linewidth = .1, alpha = .3)+
   scale_x_continuous("Mean Difference", limits = c(-1, 1.5))+
   facet_grid(rows = vars(n), scales = "free_y")+
   theme_minimal()
 
+
+write_csv(models_df, file = here::here("sim_data", "bayes_model_egg.csv"))
 ```
 
-```{r}
+```{r, eval=F}
 n = 10000
 mean_diff = 0
 
@@ -182,6 +186,187 @@ names(bf_list) <- c("12", "23", "13")
 
 ```
 
+```{r}
+p1 <- set_prior("normal(0, 0.1)")
+p2 <- set_prior("uniform(-10,10)")
+p3 <- set_prior("normal(1, 0.1)")
+
+pr_list <- list(p1, p2, p3)
+
+quiet <- function(x) { 
+  sink(tempfile()) 
+  on.exit(sink()) 
+  invisible(force(x)) 
+} 
+
+bayes_models <- vector("list", length = length(pr_list))
+
+for(i in 1:length(pr_list)){
+  bayes_models[[i]] <- quiet(sim_df_1 |> 
+  filter(!eval(time_cond)) |> 
+  pivot_for_mn(replication = F) |> 
+  group_nest(n_trial, .key = "values") |> 
+  mutate(model = map(.x = values, 
+    .f = ~ brms::brm(
+  mn ~ cond,  
+  data = .x,
+  family = "gaussian", 
+  prior = pr_list[[i]], 
+  chains = n_chains,
+  iter = n_iter, 
+  warmup = n_warmup, 
+  threads = cores, 
+  save_pars = save_pars(all=TRUE)
+      ))
+  )
+  )
+}
+
+bayes_models_df <- bayes_models |> 
+  bind_rows(.id = "id") |> 
+  mutate(
+   "spread" = map(model, ~ tidybayes::spread_draws(.x, b_Intercept, b_condcond2, b_condcond3))) |> 
+  unnest(spread)
+
+write_csv(bayes_models_df, file = here::here("sim_data", "bayes_model_egg.csv"), num_threads = cores)
+
+
+```
+
+```{r}
+sim_df_1 |> 
+    filter(!eval(time_cond)) |> 
+    pivot_for_mn(replication = F) |> 
+  group_by(n_trial, cond) |> 
+  summarise(mn = mean(mn), .groups = "drop") |> 
+  ggplot(aes(x = n_trial, group = cond))+
+  geom_jitter(aes(y = mn, colour = cond), alpha = .5) +
+  geom_line(aes(y = mn, colour = cond), alpha = .5) 
+```
+
+### Focusing on One Sample to get a better understanding on how to manage the output
+
+```{r, eval = F, message=F}
+aov_model <- aov(formula = mn ~ cond, 
+            data = sim_df_1 |> 
+  filter(!eval(time_cond)) |> 
+  pivot_for_mn(replication = F) |> filter(n_trial == 50))
+
+TukeyHSD(aov_model)
+
+bf_eeg_model <- brms::brm(
+  mn ~ cond,
+  data = sim_df_1 |> 
+    filter(!eval(time_cond)) |> 
+    pivot_for_mn(replication = F) |> 
+    filter(n_trial == 200),
+  family = "gaussian",
+  prior = p3,
+  chains = n_chains,
+  iter = n_iter,
+  warmup = n_warmup,
+  threads = cores,
+  save_pars = save_pars(all=TRUE)
+      )
+
+bf_eeg_model2 <- brms::brm(
+  mn ~ cond,
+  data = sim_df_1 |> 
+    filter(!eval(time_cond)) |> 
+    pivot_for_mn(replication = F) |> 
+    filter(n_trial == 200, cond %in% c("cond1", "cond3")),
+  family = "gaussian",
+  prior = p3,
+  chains = n_chains,
+  iter = n_iter,
+  warmup = n_warmup,
+  threads = cores,
+  save_pars = save_pars(all=TRUE)
+      )
+
+bf_eeg_df <- as_draws_df(bf_eeg_model) |> 
+  select(b_Intercept, b_condcond2, b_condcond3) |> 
+  mutate(
+    diff_13 = b_condcond3 - b_Intercept,
+    diff_12 = b_condcond2 - b_Intercept,
+    )
+
+
+bf_eeg_df2 <- as_draws_df(bf_eeg_model2)
+  select(b_Intercept, b_condcond3) |> 
+  mutate(
+    diff_13 = b_condcond3 - b_Intercept
+    )
+
+bf_eeg_df |> 
+  ggplot()+
+  geom_density(aes(b_Intercept), fill = "lightblue", alpha = .5, colour = NA)+
+  geom_density(aes(b_condcond2), fill = "cyan", alpha = .5, colour = NA)+
+  geom_density(aes(b_condcond3), fill = "darkblue", alpha = .5, colour = NA)+
+  scale_x_continuous(limits = c(0, 1.2))
+
+bf_eeg_df2 |> 
+  ggplot()+
+  geom_density(aes(b_Intercept), fill = "lightblue", alpha = .5, colour = NA)+
+  geom_density(aes(b_condcond3), fill = "darkblue", alpha = .5, colour = NA)+
+  scale_x_continuous(limits = c(0, 1.2))
+
+mode_hdi(as_draws_df(bf_eeg_model), .width = .95)
+mode_hdi(as_draws_df(bf_eeg_model2), .width = .95)
+
+# 
+# bf_eeg_model
+# 
+# get_variables(bf_eeg_model)
+```
+
+```{r}
+bf_eeg_model |> 
+  tidybayes::spread_draws(b_condcond3) |> 
+  ggplot(aes(b_condcond3))+
+  geom_density(size = .1, alpha = .3)+
+  scale_x_continuous("Mean Difference")+
+  theme_minimal()
+```
+
+```{r}
+plot_posterior <- function(df, diff_13 = T){
+  
+  if(diff_13){
+    mean_aes <- expression(aes(b_condcond3 - b_Intercept))
+    title = "Cond 3 vs Cond 1"
+  }else{
+    mean_aes <- expression(aes(b_condcond2 - b_Intercept))
+    title = "Cond 2 vs Cond 1"
+  }
+  
+  df |> mutate(
+   "spread" = map(test, ~ tidybayes::spread_draws(.x, b_Intercept, b_condcond2, b_condcond3))) |> 
+  unnest(spread) |>   
+  ggplot(eval(mean_aes))+
+  geom_density(aes(fill = n_trial, group = n_trial), size = .1, alpha = .3, colour = NA)+
+  scale_x_continuous("Mean Difference")+
+  theme_minimal()+
+  ggtitle(title)
+}
+```
+
+
+```{r}
+df_1 |> plot_posterior()
+df_1 |> plot_posterior(diff_13 = F)
+```
+ 
+ 
+```{r}
+ df_2 |> plot_posterior()
+ df_2 |> plot_posterior(diff_13 = F)
+```
+
+```{r}
+ df_3 |> plot_posterior()
+ df_3 |> plot_posterior(diff_13 = F)
+```
 
 
 

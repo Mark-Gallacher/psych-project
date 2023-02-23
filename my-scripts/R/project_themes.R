@@ -7,15 +7,18 @@ theme_project_light <- function(){
   
   theme_minimal(base_size = 10)  %+replace%
         theme(# Bold, bigger title
-              plot.title = element_markdown(face = "bold", size = rel(1.5), hjust = 0, lineheight = 1.1),
+              plot.title = element_markdown(face = "bold", size = rel(1.5), hjust = 0, lineheight = 1, vjust = 1),
               # Plain, slightly bigger subtitle that is grey
-              plot.subtitle = element_markdown(face = "plain", size = rel(1.1), color = "grey70", hjust = 0, lineheight = 1.1),
+              plot.subtitle = element_markdown(face = "plain", size = rel(1.1), color = "grey60", hjust = 0, lineheight = 1.2, vjust = 0),
               # Italic, smaller, grey caption that is left-aligned
-              plot.caption = element_text(face = "italic", size = rel(0.7), color = "grey70", hjust = 0),
+              plot.caption = element_text(face = "italic", size = rel(0.7), color = "grey60", hjust = 0),
               # Bold legend titles
-              legend.title = element_text(face = "bold"),
+              legend.title = element_text(face = "bold", size = rel(1.3)),
+              legend.text = element_text(size = rel(1.2)),
+              # legend underneath title
+              legend.position = "top",
               # Bold, slightly larger facet titles that are left-aligned for the sake of repetition
-              strip.text = element_text(face = "bold", size = rel(1.1), hjust = 0),
+              strip.text = element_text(face = "bold", size = rel(1), hjust = 0),
               # Bold axis titles
               axis.title = element_text(face = "bold"),
               # Add some space above the x-axis title and make it left-aligned
@@ -23,7 +26,13 @@ theme_project_light <- function(){
               # Add some space to the right of the y-axis title and make it top-aligned
               axis.title.y = element_text(margin = margin(r = 10), hjust = 0.5, angle = 90),
               
-              plot.background = element_rect(fill = "#FFFFFF")
+              plot.background = element_rect(fill = "#FFFFFF"), 
+              
+              panel.grid.minor.x = element_blank(),
+              panel.grid.minor.y = element_blank(),
+              panel.grid.major.y = element_blank(),
+              
+              
               
               )
       

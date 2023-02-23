@@ -19,9 +19,10 @@ theme_set(theme_project_light())
 
 line_colours <- c("#2f357c", "#bf3729", "#235070")
 # colours for the lines of significance
-sig_colours <-  c("deepskyblue4", "darkblue")
+sig_colours <-  c("#F8766D", "#2f357c", "darkgreen")
 # grey for ci range - fill
 grey = "azure4"
+
 fill_colours = c("#00BFC4", "#F8766D")
 
 # variables for the main liines
@@ -29,6 +30,21 @@ line_size = 1
 line_alpha = .8
 # alpha for the ci range fill
 fill_alpha = .2
+
+
+subtitle_for_ropes <- list(
+  
+  "prestim" = "90% Quantile of Cond 1 and 3 Before Stim. Onset",
+  "control" = "90% Quantile of Cond 1 and 2 in ROI", 
+  "controlt" = "T-test between Cond 1 and 2 in ROI (0 +/- t-statistic)",
+  "nonsig" = "90% Quantile of Non-sig. Values between Cond 1 and 2",
+  "t" = "90% Quantile of T-values between Cond 1 and 3 in ROI",
+  "static_3" = "Static ROPE at +/- 0.3 raw units",
+  "static_2" = "Static ROPE at +/- 0.2 raw units",
+  "static_1" = "Static ROPE at +/- 0.1 raw units"
+  
+)
+
 
 
 
@@ -164,63 +180,178 @@ tp_graphs <- function(df){
 
 ## For the plot where we have EEG data and we want to show what each ROPE looks like
 ## This is the base function, which we will use to build the rest of the ROPE graphs
+# #### OLD plot_base function - keeping it just incase we hit problem, then will be removed
+# plot_base <- function(df){
+#   
+#   p <- df |> 
+#     ggplot(aes(x = time)) +
+#     geom_line(aes(y = mn_cond1), colour = line_colours[1], alpha = line_alpha, size = line_size) +
+#     geom_line(aes(y = mn_cond2), colour = line_colours[2], alpha = line_alpha, size = line_size) +
+#     geom_line(aes(y = mn_cond3), colour = line_colours[3],alpha = line_alpha, size = line_size) +
+#     geom_vline(xintercept = 0, colour = grey)+
+#     geom_hline(yintercept = 0, colour = grey)+
+#     geom_line(aes(y = raw_13_sig - 0.1), size = line_size, colour = sig_colours[1])+
+#     geom_line(aes(y = bon_13_sig), size = line_size, colour = sig_colours[2])+
+#     # geom_ribbon(aes(ymax = ci_u, ymin = ci_l), alpha = fill_alpha, fill = grey)+
+#     facet_wrap(~n_trial, scale = "free_y")+
+#     scale_x_continuous("Time (ms)")+
+#     scale_y_continuous("")+
+#     labs(title = glue::glue(
+#       "<b>ERP Mean Values across Time with 
+#          <span style='color:{grey};'>95% Confidence Intervals</span> for Various Sample Sizes</b><br>"))
+#   
+#   
+#   return(p)
+# }
+
+
+
 plot_base <- function(df){
   
   p <- df |> 
-    ggplot(aes(x = time)) +
-    geom_line(aes(y = mn_cond1), colour = line_colours[1], alpha = line_alpha, size = line_size) +
-    geom_line(aes(y = mn_cond2), colour = line_colours[2], alpha = line_alpha, size = line_size) +
-    geom_line(aes(y = mn_cond3), colour = line_colours[3],alpha = line_alpha, size = line_size) +
+    ggplot(aes(x = time, y = mn, colour = cond)) +
+    geom_line(alpha = line_alpha, size = line_size)+
     geom_vline(xintercept = 0, colour = grey)+
     geom_hline(yintercept = 0, colour = grey)+
-    geom_line(aes(y = raw_13_sig - 0.1), size = line_size, colour = sig_colours[1])+
-    geom_line(aes(y = bon_13_sig), size = line_size, colour = sig_colours[2])+
-    # geom_ribbon(aes(ymax = ci_u, ymin = ci_l), alpha = fill_alpha, fill = grey)+
     facet_wrap(~n_trial, scale = "free_y")+
     scale_x_continuous("Time (ms)")+
     scale_y_continuous("")+
-    labs(title = glue::glue(
-      "<b>ERP Mean Values across Time with 
-         <span style='color:{grey};'>95% Confidence Intervals</span> for Various Sample Sizes</b><br>"))
-  
+    # MetBrewer::scale_color_met_c(name = "Java")+
+    labs(title = "ERP Values of Three Conditions, at Various Sample Sizes", 
+         colour = "Condition")+
+    scale_colour_manual(values = MetBrewer::met.brewer("Austria", 3),
+                        labels = c("1", "2", "3"), 
+                        guide = guide_legend(override.aes = list(linewidth = 2)))
   
   return(p)
 }
 
-plot_nu_rope <- function(df){
+plot_sim_base <- function(df, rope_df = NULL, replication = F){
+  
+  p <- df |> 
+    pivot_for_mn(replication = replication) |> 
+    plot_base()
+  
+  if(!is.null(rope_df)){
+  p <- p +
+    geom_point(data = rope_df, aes(x = time, y = no_rope - 1, fill = '1'), 
+               size = line_size, colour = sig_colours[1], inherit.aes = F, stroke = NA, shape = 22, show.legend = F)+
+    labs(subtitle = glue::glue("Lines at Bottom represent significance,
+                            <b><span style='color:{fill_colours[2]};'>Raw p-values </span></b>"))
+  }else{
+    message("Argument 'rope_df' was empty - No lines of Significance were plotted")
+  }
+  return(list(p))
+}
+
+plot_rep_base <- function(df, rope_df = NULL, replication = T){
+  
+  col_labels <- c("Original", "Replication")
+  names(col_labels) <- c("A", "B")
+  row_labels <- str_c(unique(df$n_trial))
+  names(row_labels) <- unique(df$n_trial)
+  
+  p <- df |>
+    pivot_for_mn(replication = replication) |> 
+    plot_base()+
+    facet_grid(n_trial ~ experiment, 
+               labeller = labeller(n_trial = row_labels, experiment = col_labels), 
+               scales = "free_y")+
+    labs(subtitle = glue::glue("Lines at Bottom represent significance,
+                            <b><span style='color:{sig_colours[1]};'>Raw p-values </span></b>"))
+  
+  if(!is.null(rope_df)){
+    ropes <- unique(rope_df$rope)
+    p <- p + 
+      geom_point(data = subset(rope_df, rope == ropes[[1]]), 
+               aes(x = time, y = no_rope - 1, fill = '1'), 
+               size = line_size, inherit.aes = F, alpha = line_alpha, stroke = NA, shape = 22, show.legend = F)
+  }else{
+    message("Argument 'rope_df' was empty - No lines of Significance were plotted")
+  }
+  return(list(p))
+}
+
+plot_rope <- function(p, df, null_rope = T, change_subtitle = F, replication = F){
   
   # getting unique ropes, used to get max and min columns later
-  ropes <- colnames(df)[str_detect(string = colnames(df), pattern = "^(nu_)")]|> 
-    str_remove_all("^(nu_)") |> 
-    str_remove_all("(_min)|(_max)$") |> 
-    unique()
-  
+  ropes <- unique(df$rope)
+  subs_ropes <- subtitle_for_ropes[ropes]
   plots <- list()
   
-  for (i in 1:length(ropes)){
+  rope_label = c("Raw p-values", "Null ROPE Sig.")
   
-    # column names of the two columns for the min and max values
-  col <- df |> 
-    select(contains(ropes[i])) |> 
-    colnames()
-    
-    # get name of rope for subtitle  
-  rope_subtitle <- stringr::str_to_title(ropes[i])
-  
-  plots[[i]] <- df |> 
-    plot_base()+
-    geom_ribbon(aes(x = time , 
-                    ymin = .data[[col[1]]],
-                    ymax = .data[[col[2]]]), 
-                alpha = fill_alpha, 
-                fill = fill_colours[2], 
-                colour = fill_colours[2])+
-    labs(subtitle = glue::glue("Lines at Bottom represent significance,
-                            <b><span style='color:{sig_colours[1]};'>Raw p-values</b></span> and
-                            <b><span style='color:{sig_colours[2]};'>Bonferroni Corrected </b></span><br>
-                            Region of Practical Equivalance:
-                            <b><span style='color:{fill_colours[2]};'>{rope_subtitle}</b></span>"))+
-    theme_project_light()
+  if(null_rope){
+    ribbon_fill = "black"
+    point_fill = sig_colours[1:2]
+    fill_group = '2'
+    }else{
+    ribbon_fill = "#28E2E5"
+    point_fill = sig_colours
+    fill_group = '3'
+    rope_label = c("Raw p-values", "Null ROPE Sig.", "Alternative ROPE Replication")
+    title <- "Applying an Alternative ROPE to Replicate ERP Effects and to Achieve Statistical Consistency"
+    gap <- 0.8
+  }
+  if(replication){
+    rope_sig <- "Replication Using ROPE"
+    if(!null_rope){
+      # rope_label = c("Raw p-values", "Null ROPE Sig.", "Alternative ROPE Replication")
+      # title <- "Applying an Alternative ROPE to Replicate ERP Effects and to Achieve Statistical Consistency"
+      gap <- 0.6
+    }else{
+      title <- "Applying a Null ROPE to Replicate ERP Effects and to Achieve Statistical Consistency"
+      gap <- 0.8
+      }
+  }else{
+    title <- "Applying a ROPE to Achieve Statistical Consistency"
+    rope_sig <- "Significant from ROPE"
+    gap <- 0.9
+  }
+  for (g in 1:length(p)) {
+    if(change_subtitle){
+    null_rope <- p[[g]]$labels$subtitle |> 
+      str_c() |> 
+      str_remove_all("(<b><span>)|(</b></span>)|(Region of Practical Equivalence: )")
+    }
+    for (i in 1:length(ropes)){
+      # get name of rope for subtitle 
+      if(change_subtitle){
+        ## Subtitle for Null and Alternative ROPE
+        rope_subtitle <- c(stringr::str_c("Null: ", null_rope),stringr::str_c("Alternative: ", subs_ropes[i]))
+        full_subtitle <- quote(glue::glue("Region of Practical Equivalence: <b><span>{rope_subtitle[1]}</b></span> and<br>
+                                 <b><span>{rope_subtitle[2]}</b></span>"))
+        }else{
+        ## Subtile for just Null ROPE
+          rope_subtitle <- subtitle_for_ropes[ropes][[i]]
+          full_subtitle <- quote(glue::glue("Region of Practical Equivalence: <b><span>{rope_subtitle}</b></span>"))
+        } 
+      
+      df_rope <- subset(df, rope == ropes[[i]])
+      
+      plots[[length(ropes) * (g - 1) + i]] <- p[[g]] + 
+        geom_ribbon(data = df_rope, 
+                    aes(x = time, ymin = min, ymax = max), 
+                                  alpha = fill_alpha, 
+                                  fill = ribbon_fill, 
+                                  colour = NA, 
+                                  inherit.aes = F )+
+        geom_point(data = df_rope, 
+                   aes(x = time, y = sig_rope - gap, fill = fill_group), 
+                   inherit.aes = F, 
+                   size = line_size, 
+                   alpha = line_alpha,
+                   shape = 22, 
+                   stroke = NA) +
+        labs(
+          title = glue::glue({title}),
+          subtitle = eval(full_subtitle))+
+        scale_fill_manual("Significance", 
+                          values = point_fill, 
+                          labels = rope_label,
+                          guide = guide_legend(override.aes = list(size = 5, colour = NA)))+
+        theme_project_light()
+    }
   }
   
   return(plots)

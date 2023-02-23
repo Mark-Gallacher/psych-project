@@ -15,16 +15,16 @@ library(tidyverse)
 library(doParallel)
 library(ggtext) 
 
-doParallel::registerDoParallel(cores = 18)
+doParallel::registerDoParallel(cores = parallel::detectCores()-2)
 ```
 
 
 ```{r}
-n = seq(5,5000, 5)
-mn = 0
-sd = 1
+n1 <- rnorm(100)
+n2 <- rnorm(100)
 
-t.test(rnorm(n[1], mn, sd), rnorm(n[1], mn, sd))
+t.test(n1, n2)
+BayesFactor::ttestBF(n1, n2)
 ```
 
 
@@ -65,33 +65,34 @@ t.test(rnorm(n[1], mn, sd), rnorm(n[1], mn, sd))
 ```
 
 ```{r}
-
-```
-
-
-```{r}
-bf_ttest_fast_loop <- function(sample_size, mean_diff = 0, nullInterval = NULL){
+bf_ttest_fast_loop <- function(sample_size, mean_diff = 0, nullInterval = NULL, rscale = NULL){
+  
+  if(is.null(rscale)){
+    rscale = "medium"
+  }
+  
+  s1 <- s2 <- c()
   
   len_n <- length(sample_size)
 
   output <-  foreach::foreach (s = 1:len_n, .combine = "rbind") %dopar%{
     # generate sample
-    s1 = rnorm(sample_size[s], mean = 0, sd = 1)
-    s2 = rnorm(sample_size[s], mean = 0 + mean_diff, sd = 1)
+    s1 = c( s1, rnorm(5, mean = 0, sd = 1))
+    s2 = c( s2, rnorm(5, mean = mean_diff, sd = 1))
     
     # t test between two samples
-    bf <- BayesFactor::ttestBF(s1, s2, nullInterval = nullInterval)
+    bf <- BayesFactor::ttestBF(s1, s2, rscale = rscale, nullInterval = nullInterval)
     
     # finding the mean diff
     mean_diff <- mean(s1) - mean(s2)
     
     # combining output
-    c(sample_size[s], as.vector(bf)[[1]],  mean_diff) 
+    c(sample_size[s], as.vector(bf)[[1]],  mean_diff, rscale) 
     
   }
   
   output |> 
-    tibble::as_tibble(.name_repair = ~ c("n", "bf", "mean_diff"))
+    tibble::as_tibble(.name_repair = ~ c("n", "bf", "mean_diff", "rscale"))
 }
 ```
 
@@ -99,13 +100,13 @@ bf_ttest_fast_loop <- function(sample_size, mean_diff = 0, nullInterval = NULL){
 
 sample_size <- seq(5,5000,5)
 
-df <- bf_ttest_fast_loop(sample_size, mean_diff = 0, nullInterval = c(-.2, .2))
+df <- bf_ttest_fast_loop(sample_size, mean_diff = 0)
 ```
 
 ```{r}
 df |> 
-  filter(bf < 10000) |> 
-  ggplot(aes(n, 1/bf))+
+  # filter(bf < 10000) |> 
+  ggplot(aes(n, bf))+
   geom_point()
 ```
 
@@ -115,96 +116,105 @@ sample_size = seq(5,5000,5)
 
 repeats = 1000
 
-bf_ttest_df_2 <- replicate(repeats, expr = bf_ttest_fast_loop(sample_size = sample_size, mean_diff = 0, nullInterval = c(-.1, .1))) |>
+bf_ttest_df <- replicate(repeats, expr = bf_ttest_fast_loop(sample_size = sample_size, mean_diff = 0)) |>
     t() |> 
-    tibble::as_tibble(.name_repair = ~ c("n", "bf", "mean_diff")) |> 
+    tibble::as_tibble(.name_repair = ~ c("n", "bf", "mean_diff", "rscale")) |> 
     map_dfr(~unlist(.x))
 
+bf_ttest_df_2 <- replicate(repeats, expr = bf_ttest_fast_loop(sample_size = sample_size, mean_diff = 0, rscale = "wide")) |>
+    t() |> 
+    tibble::as_tibble(.name_repair = ~ c("n", "bf", "mean_diff", "rscale")) |> 
+    map_dfr(~unlist(.x))
+
+bf_ttest_df_3 <- replicate(repeats, expr = bf_ttest_fast_loop(sample_size = sample_size, mean_diff = 0, rscale = "ultrawide")) |>
+    t() |> 
+    tibble::as_tibble(.name_repair = ~ c("n", "bf", "mean_diff", "rscale")) |> 
+    map_dfr(~unlist(.x))
+```
+
+
+
+```{r}
+bf_ttest_df |> 
+  filter(bf < 1000) |> 
+  ggplot()+
+  geom_point(aes(n, bf), colour = "darkred")
+  # geom_point(aes(n, 1/exp(1)^bf), colour = "darkblue", alpha = .1)
+```
+
+
+```{r}
+here::i_am("./my-scripts/RMD/bayes-factor-testing.Rmd")
+here::here()
+```
+
+
+```{r, eval = F}
+bf_r_df <- bind_rows(bf_ttest_df, bf_ttest_df_2, bf_ttest_df_3)
+
+# write_csv(bf_ttest_df, file =   here::here("./sim_data/bf_ttest_med.csv"))
+# write_csv(bf_ttest_df_2, file = here::here("./sim_data/bf_ttest_wide.csv"))
+# write_csv(bf_ttest_df_3, file = here::here("./sim_data/bf_ttest_ultwide.csv"))
+# write_csv(bf_r_df, file = here::here("./sim_data/bf_ttest_df.csv"))
+```
+
+
+```{r}
+bf_ttest_df <- read_csv(here::here("./sim_data/bf_ttest_med.csv"))
+bf_ttest_df_2 <- read_csv(here::here("./sim_data/bf_ttest_wide.csv"))
+bf_ttest_df_3 <- read_csv(here::here("./sim_data/bf_ttest_ultwide.csv"))
+bf_r_df <- read_csv(here::here("./sim_data/bf_ttest_df.csv"))
+
 ```
 
 ```{r}
-# 
-# write_csv(bf_ttest_df, file = "../sim_data/bf_ttest.csv")
-# write_csv(bf_ttest_df_2, file = "../sim_data/bf_ttest_2.csv")
+get_prop_for_bf <- function(df, ...){
+  df |> 
+    group_by(n, {{...}}) |> 
+    mutate(h = if_else(bf > 3, 1, 0),
+           h = if_else((bf <= 3 & bf >= 1/3), 0, h),
+           h = if_else(bf < 1/3, -1, h), 
+           prop_1 = 100*sum(h == 1)/ n(),
+           prop_0 = 100*sum(h == -1)/ n()) |> 
+    select(-h) |> 
+    summarise(across(.cols = c("bf", "mean_diff", contains("prop_")),
+                     .fns = list(mean = mean, sd = ~ sd(.x), mean_t = ~ mean(.x, trim = .05)),
+                     .names = "{.col}_{.fn}"))|> 
+    select(!c(prop_1_sd, prop_0_sd, prop_1_mean_t, prop_0_mean_t))
+}
 
+plot_prop_for_bf <- function(df){
+  df |>
+    ggplot(aes(n, bf))+
+    geom_point(aes(colour = 1/bf < 3), alpha = 0.1, size = .5, show.legend = F)+
+    theme_minimal()+
+    scale_y_continuous("Bayes Factor", limits = c(0,5))+
+    labs(title = "Showing how Bayes Factor Become Unexpectedly Large", 
+         subtitle = "Highlight Values Which Support Null Hypthesis")+
+    scale_colour_manual(values = c("darkred", "skyblue4"))
+}
 
-bf_ttest_df <- read_csv("../sim_data/bf_ttest.csv")
-bf_ttest_df_2 <- read_csv("../sim_data/bf_ttest_2.csv")
 
 ```
 
-
 ```{r}
-
 bf_df <- bf_ttest_df |> 
-  mutate(bf = 1/exp(1)^bf) |> 
-  group_by(n) |> 
-  mutate(h = if_else(bf > 3, 1, 0),
-         h = if_else((bf <= 3 & bf >= 1/3), 0, h),
-         h = if_else(bf < 1/3, -1, h), 
-         prop_1 = 100*sum(h == 1)/ n(),
-         prop_0 = 100*sum(h == -1)/ n()) |> 
-  select(-h) |> 
-  summarise(across(.cols = c("bf", "mean_diff"),
-                   .fns = list(mean = mean, sd = ~ sd(.x), mean_t = ~ mean(.x, trim = .05)),
-                   .names = "{.col}_{.fn}"))
-
+  get_prop_for_bf() 
 
 bf_df_2 <- bf_ttest_df_2 |> 
-  group_by(n) |> 
-  mutate(bf = 1/bf) |> 
-  filter(bf < 1000) |> 
-  mutate(h = if_else(bf > 3, 1, 0),
-         h = if_else((bf <= 3 & bf >= 1/3), 0, h),
-         h = if_else(bf < 1/3, -1, h), 
-         prop_1 = 100*sum(h == 1)/ n(),
-         prop_0 = 100*sum(h == -1)/ n()) |> 
-  select(-h) |> 
-  summarise(across(.cols = c("bf", "mean_diff", starts_with("prop")),
-                   .fns = list(mean = mean, sd = ~ sd(.x), mean_t = ~ mean(.x, trim = .05)),
-                   .names = "{.col}_{.fn}"))
+  get_prop_for_bf()
+
+
 ```
 
 ```{r}
-bf_ttest_df_2 |>
-  filter(1/bf < 1000) |>
-  ggplot(aes(n, 1/bf))+
-  geom_point(aes(colour = 1/bf < 3), alpha = 0.1, size = .5, show.legend = F)+
-  theme_minimal()+
-  scale_y_continuous("Bayes Factor", limits = c(0,5))+
-  labs(title = "Showing how Bayes Factor Become Unexpectedly Large", 
-       subtitle = "Highlight Values Which Support Alternative Hypthesis")+
-  scale_colour_manual(values = c("darkred", "skyblue4"))
+bf_ttest_df |>
+  plot_prop_for_bf()
 
-# bf_ttest_df |>
-#   mutate(bf = 1/(exp(1)^bf)) |> 
-#   ggplot(aes(x = n, y = bf))+
-#   geom_point(alpha = 0.1, size = .5, colour = "skyblue4")+
-#   theme_minimal()+
-#   scale_y_continuous("Bayes Factor")+
-#   labs(title = "Showing how Values Become Unexpectedly Large")
-#   
-#   Again - unexpected result, maybe we need to be more careful how BF is calculated
 ```
 
 ```{r}
-# bf_df |>
-#   ggplot(aes(x = n, y = bf_mean))+
-#   geom_point(alpha = .4, size = .8, colour = "#8B0000")+
-#   geom_point(aes(y = bf_mean_t), size = .8, colour = "skyblue4", alpha = .4)+
-#   theme_minimal()+
-#   scale_y_continuous("Mean Bayes Factor")+
-#   labs(title =
-#          "<b>1,000,000 Simulated Bayesian T-tests Showing Mean Bayes Factor</b><br>
-#        (<b span style='color:#8B0000;'>Mean Value</b span> and
-#        
-#        <b span style='color:#008B8B;'>5% Trimmed Mean</b span>)", 
-#        subtitle = "With a Point Null Prior")+
-#   theme(plot.title = element_markdown(lineheight = 1))
-#   
-#   I think there was a problem in this sim - as the BF are centred around 3, instead of nearing 0
-
-bf_df_2|> 
+bf_df|> 
   ggplot(aes(x = n, y = bf_mean))+
   geom_point(alpha = .8, size = .8, colour = "#8B0000")+
   geom_point(aes(y = bf_mean_t), alpha = .8, size = .8, colour = "skyblue4")+
@@ -212,8 +222,8 @@ bf_df_2|>
   theme_minimal()+
   labs(title =
          "<b>1,000,000 Simulated Bayesian T-tests Showing Mean Bayes Factor</b><br>
-       (<b span style='color:#8B0000;'>Mean Value</b span> and
-       <b span style='color:#008B8B;'>5% Trimmed Mean</b span>)", 
+       (<b><span style='color:#8B0000;'>Mean Value</b><span> and
+       <b><span style='color:#008B8B;'>5% Trimmed Mean</b><span>)", 
        subtitle = "With a -0.1 to 0.1 interval Null Prior")+
   theme(plot.title = element_markdown(lineheight = 1))
 ```
@@ -222,7 +232,7 @@ bf_df_2|>
 
 colour1 = '#BDB9B7' # just to show how ggtext can work with variable names
 
-bf_df_2 |> 
+bf_df |> 
   ggplot(aes(x= n))+
   geom_point(aes(y = prop_1_mean), colour = colour1, size = .5)+
   geom_point(aes(y = prop_0_mean), colour = "darkred", size = .5)+
@@ -232,16 +242,52 @@ bf_df_2 |>
   scale_x_continuous("Sample Size")+
   labs(title = glue::glue(
          "<b>1,000,000 Simulated Bayesian T-tests Showing Proportion of </b><br>Results which favour the
-          <b span style='color:#8B0000;'>Null</b span>,
-          <b span style='color:{colour1};'>Alternative</b span> and
-          <b span style='color:#008B8B;'>Neither</b span>"))+
+          <b><span style='color:#8B0000;'>Null</b><span>,
+          <b><span style='color:{colour1};'>Alternative</b><span> and
+          <b><span style='color:#008B8B;'>Neither</b><span>"))+
   theme(plot.title = element_markdown())
 
 
 
-# ggplot2::luv_colours
-# 008B8Bblob:https://teams.microsoft.com/ddc483dd-9842-49e1-b74e-4532b0720735
+#ggplot2::luv_colours
+#008B8Bblob:https://teams.microsoft.com/ddc483dd-9842-49e1-b74e-4532b0720735
 ```
+```{r}
+bf_r <- bf_r_df |> 
+    group_by(n, rscale) |> 
+    mutate(h = if_else(bf > 3, 1, 0),
+           h = if_else((bf <= 3 & bf >= 1/3), 0, h),
+           h = if_else(bf < 1/3, -1, h), 
+           prop_1 = 100*sum(h == 1)/ n(),
+           prop_0 = 100*sum(h == -1)/ n()) |> 
+    select(-h) |> 
+    summarise(across(.cols = c("bf", "mean_diff", contains("prop_")),
+                     .fns = list(mean = mean, sd = ~ sd(.x), mean_t = ~ mean(.x, trim = .05)),
+                     .names = "{.col}_{.fn}"), 
+              .groups = "drop")|> 
+    select(!c(prop_1_sd, prop_0_sd, prop_1_mean_t, prop_0_mean_t))
+
+bf_r |> 
+  ggplot(aes(x= n, colour = rscale))+
+  geom_point(aes(y = prop_0_mean), size = .5)+
+  theme_minimal()+
+  scale_y_continuous("Proportion of Tests (%)")+
+  scale_x_continuous("Sample Size")+
+  labs(title = glue::glue(
+         "1,000,000 Simulated Bayesian T-tests Showing Proportion of </b><br>Results which favour the Null"))+
+  theme(plot.title = element_markdown())
+
+bf_r |> 
+  ggplot(aes(x= n, y = bf_mean, colour = rscale))+
+  geom_point(alpha = .5, size = .8)+
+  scale_y_log10("Bayes Factor")+
+  scale_x_continuous("Sample Size")+
+  theme_minimal()+
+  labs(title =
+         "<b>1,000,000 Simulated Bayesian T-tests Showing Mean Bayes Factor</b>")+
+  theme(plot.title = element_markdown(lineheight = 1))
+```
+
 
 
 ```{r}

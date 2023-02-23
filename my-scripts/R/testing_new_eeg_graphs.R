@@ -1,4 +1,5 @@
-
+library(tidyverse)
+library(pwr)
 ## Min alpha beta. 
 
 df <- sim_df_1 |> 
@@ -12,19 +13,22 @@ df <- sim_df_1 |>
     ) |> 
   rowwise() |> 
   mutate(
-    beta = 1 - (pwr.t.test(n = n_trial, sig.level = 0.05, d = half_d)$power), 
+    beta_2 = 1 - (pwr.t.test(n = n_trial, sig.level = 0.05, d = half_d)$power), 
+    new_alpha_2 = min(0.05, beta_2), 
+    beta = 1 - (pwr.t.test(n = n_trial, sig.level = 0.05, d = d)$power), 
     new_alpha = min(0.05, beta)
     )
+
 
 
 df |> 
   select(n_trial, new_alpha) |> 
   inner_join(sim_df_1, by = "n_trial") |> 
-  select(1:17) |> 
+  select(1:19) |> 
   group_by(n_trial) |> 
   mutate(
-    sig_12 = if_else(p_12 < new_alpha, min(ci_12_l), NULL),
-    sig_13 = if_else(p_13 < new_alpha, min(ci_13_l), NULL),
+    sig_12 = if_else(p_12 < new_alpha, min(ci_l_12), NULL),
+    sig_13 = if_else(p_13 < new_alpha, min(ci_l_13), NULL),
   ) |> 
   ungroup() |> 
   ggplot(aes(x = time)) +
