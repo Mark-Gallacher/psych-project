@@ -259,18 +259,50 @@ dyn_df <- tibble(
 dyn_crit1 <- dyn_df |> 
   ggplot(aes(x = n, y = crit_eff, group = eff_size, colour = eff_size))+
   geom_point(alpha = .2)+
-  geom_line(alpha = .2)+
-  scale_x_log10()
+  geom_line(alpha = .2, linewidth = 1)+
+  scale_x_log10("Sample Size")+
+  scale_y_continuous("Cohen's d", breaks = seq(0, 2, 0.5), limits = c(0, 2))+
+  scale_colour_gradient("Predicted Effect Size", 
+                        guide = guide_colourbar(barwidth = 15, barheight = 0.8, title.vjust = 1))+
+  labs(title = "Critical Effect Sizes vs Sample Sizes with Dynamic Alpha Rule")+
+  theme_project_light(base_size = 13)+
+  theme(panel.grid.major.y = element_line())
 
-dyn_crit2 <- dyn_df |> 
+dyn_crit2 <- dyn_df |>
   filter(!alpha < 1e-10) |> 
   ggplot(aes(x = n, y = crit_eff, group = eff_size, colour = eff_size))+
   geom_point(alpha = .2)+
-  geom_line(alpha = .2)+
-  scale_x_log10()
+  geom_line(alpha = .2, linewidth = 1)+
+  scale_x_log10("Sample Size")+
+  scale_y_continuous("Cohen's d", breaks = seq(0, 2, 0.5), limits = c(0, 2))+
+  scale_colour_gradient("Predicted Effect Size", 
+                        guide = guide_colourbar(barwidth = 15, barheight = 0.8, title.vjust = 1))+
+  labs(title = "Critical Effect Sizes vs Sample Sizes with Dynamic Alpha Rule")+
+  theme_project_light(base_size = 13)+
+  theme(panel.grid.major.y = element_line())
 
-ggsave(filename = here::here("images", "dyn_crit1.png"), plot = dyn_crit1, width = 10, height = 8, dpi = 360) 
-ggsave(filename = here::here("images", "dyn_crit2.png"), plot = dyn_crit2, width = 10, height = 8, dpi = 360) 
+## artificially putting in where line should be
+## the 0.98*crit_eff allows the graph to have a neat look, 
+## although it is technically incorrect, as the plateau should be at crit_eff,
+## or following Free Lunch Paper - 1/2 of Predicted Effect - Which I don't observe
+dyn_crit3 <- dyn_df |>
+  mutate(crit_eff = if_else(
+    alpha < 1e-10, 0.98*eff_size, crit_eff)
+    ) |> 
+  ggplot(aes(x = n, y = crit_eff, group = eff_size, colour = eff_size))+
+  geom_point(alpha = .2)+
+  geom_line(alpha = .2, linewidth = 1)+
+  scale_x_log10("Sample Size")+
+  scale_y_continuous("Cohen's d", breaks = seq(0, 2, 0.5), limits = c(0, 2))+
+  scale_colour_gradient("Predicted Effect Size", 
+                        guide = guide_colourbar(barwidth = 15, barheight = 0.8, title.vjust = 1))+
+  labs(title = "Critical Effect Sizes vs Sample Sizes with Dynamic Alpha Rule")+
+  theme_project_light(base_size = 13)+
+  theme(panel.grid.major.y = element_line())
+
+ggsave(filename = here::here("images", "ch1", "dyn_crit.png"), plot = dyn_crit1, width = 10, height = 8, dpi = 360) 
+ggsave(filename = here::here("images", "ch1", "dyn_crit_tidy.png"), plot = dyn_crit2, width = 10, height = 8, dpi = 360) 
+ggsave(filename = here::here("images", "ch1", "dyn_crit_fake.png"), plot = dyn_crit3, width = 10, height = 8, dpi = 360) 
 
 # # beta
 # dyn_df |>

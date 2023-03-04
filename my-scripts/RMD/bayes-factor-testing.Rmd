@@ -6,7 +6,7 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, fig.height = 8, fig.width = 10)
 ```
 
 ```{r}
@@ -16,6 +16,9 @@ library(doParallel)
 library(ggtext) 
 
 doParallel::registerDoParallel(cores = parallel::detectCores()-2)
+
+source(here::here("my-scripts", "R", "project_themes.R"))
+base_size = 13
 ```
 
 
@@ -160,10 +163,10 @@ bf_r_df <- bind_rows(bf_ttest_df, bf_ttest_df_2, bf_ttest_df_3)
 
 
 ```{r}
-bf_ttest_df <- read_csv(here::here("./sim_data/bf_ttest_med.csv"))
-bf_ttest_df_2 <- read_csv(here::here("./sim_data/bf_ttest_wide.csv"))
-bf_ttest_df_3 <- read_csv(here::here("./sim_data/bf_ttest_ultwide.csv"))
-bf_r_df <- read_csv(here::here("./sim_data/bf_ttest_df.csv"))
+bf_ttest_df <- read_csv(here::here("sim_data", "ch3_bayes", "bf_ttest_med.csv"))
+bf_ttest_df_2 <- read_csv(here::here("sim_data", "ch3_bayes", "bf_ttest_wide.csv"))
+bf_ttest_df_3 <- read_csv(here::here("sim_data", "ch3_bayes", "bf_ttest_ultwide.csv"))
+bf_r_df <- read_csv(here::here("sim_data", "ch3_bayes", "bf_ttest_df.csv"))
 
 ```
 
@@ -187,10 +190,8 @@ plot_prop_for_bf <- function(df){
   df |>
     ggplot(aes(n, bf))+
     geom_point(aes(colour = 1/bf < 3), alpha = 0.1, size = .5, show.legend = F)+
-    theme_minimal()+
+    theme_project_light()+
     scale_y_continuous("Bayes Factor", limits = c(0,5))+
-    labs(title = "Showing how Bayes Factor Become Unexpectedly Large", 
-         subtitle = "Highlight Values Which Support Null Hypthesis")+
     scale_colour_manual(values = c("darkred", "skyblue4"))
 }
 
@@ -204,28 +205,32 @@ bf_df <- bf_ttest_df |>
 bf_df_2 <- bf_ttest_df_2 |> 
   get_prop_for_bf()
 
-
+bf_df
+bf_df_2
 ```
 
 ```{r}
 bf_ttest_df |>
   plot_prop_for_bf()
 
+
 ```
 
 ```{r}
 bf_df|> 
   ggplot(aes(x = n, y = bf_mean))+
-  geom_point(alpha = .8, size = .8, colour = "#8B0000")+
-  geom_point(aes(y = bf_mean_t), alpha = .8, size = .8, colour = "skyblue4")+
-  scale_y_continuous("Bayes Factor")+
-  theme_minimal()+
-  labs(title =
-         "<b>1,000,000 Simulated Bayesian T-tests Showing Mean Bayes Factor</b><br>
-       (<b><span style='color:#8B0000;'>Mean Value</b><span> and
-       <b><span style='color:#008B8B;'>5% Trimmed Mean</b><span>)", 
-       subtitle = "With a -0.1 to 0.1 interval Null Prior")+
-  theme(plot.title = element_markdown(lineheight = 1))
+  geom_point(alpha = .5, size = 2.5, fill = "skyblue4", shape = 21, stroke = NA)+
+  # geom_point(aes(y = bf_mean_t), alpha = .8, size = .8, colour = "skyblue4")+
+  scale_y_continuous(expression(paste("Bayes Factor ")(BF[10])), breaks = c(0, 0.3, 0.6, 0.9))+
+  scale_x_continuous("Sample Size")+
+  theme_project_light(base_size = base_size)+
+  labs(title = "Mean Bayes Factor Across Sample Sizes from Bayesian T-tests")+
+  theme(plot.title = element_markdown(lineheight = 1))+
+  annotate("rect", ymin = 0, ymax = 0.3, xmin = 0, xmax = 5000, alpha = .3, fill = "skyblue3")+
+  annotate("text", y = 0.3, x = 5000, label = "Supports Null Hypothesis", vjust = 1.1, hjust = 1, colour = "skyblue4", size = 6)+
+  coord_cartesian(ylim = c(0, 1))
+
+ggsave(filename = here::here("images", "ch3_bf_simple.png"), dpi = 360, width = 10, height = 8)
 ```
 
 ```{r}
@@ -237,7 +242,7 @@ bf_df |>
   geom_point(aes(y = prop_1_mean), colour = colour1, size = .5)+
   geom_point(aes(y = prop_0_mean), colour = "darkred", size = .5)+
   geom_point(aes(y = 100 - (prop_0_mean + prop_1_mean)), colour = "darkcyan", size = .5)+
-  theme_minimal()+
+  theme_project_light()+
   scale_y_continuous("Proportion of Tests (%)")+
   scale_x_continuous("Sample Size")+
   labs(title = glue::glue(
@@ -270,7 +275,7 @@ bf_r <- bf_r_df |>
 bf_r |> 
   ggplot(aes(x= n, colour = rscale))+
   geom_point(aes(y = prop_0_mean), size = .5)+
-  theme_minimal()+
+  theme_project_light()+
   scale_y_continuous("Proportion of Tests (%)")+
   scale_x_continuous("Sample Size")+
   labs(title = glue::glue(
@@ -282,7 +287,7 @@ bf_r |>
   geom_point(alpha = .5, size = .8)+
   scale_y_log10("Bayes Factor")+
   scale_x_continuous("Sample Size")+
-  theme_minimal()+
+  theme_project_light()+
   labs(title =
          "<b>1,000,000 Simulated Bayesian T-tests Showing Mean Bayes Factor</b>")+
   theme(plot.title = element_markdown(lineheight = 1))
@@ -292,21 +297,21 @@ bf_r |>
 
 ```{r}
 
-bf_df |> 
-  ggplot(aes(x = n, y = mean_diff_mean))+
-  geom_point()+
-  geom_ribbon(aes(ymax = mean_diff_mean + (mean_diff_sd / 2), ymin = mean_diff_mean - (mean_diff_sd / 2)), alpha = 0.2)+
-  theme_minimal()+
-  scale_y_continuous("Absolute Mean Difference")+
-  labs(title = "Absolute Mean Difference between Two Groups from 1,000,000 Bayesian T-Tests")
-
-bf_df_2 |> 
-  ggplot(aes(x = n, y = mean_diff_mean))+
-  geom_point()+
-  geom_ribbon(aes(ymax = mean_diff_mean + (mean_diff_sd / 2), ymin = mean_diff_mean - (mean_diff_sd / 2)), alpha = 0.2)+
-  theme_minimal()+
-  scale_y_continuous("Mean Difference")+
-  labs(title = "Mean Difference between Two Groups from 1,000,000 Bayesian T-Tests")
+# bf_df |> 
+#   ggplot(aes(x = n, y = mean_diff_mean))+
+#   geom_point()+
+#   geom_ribbon(aes(ymax = mean_diff_mean + (mean_diff_sd / 2), ymin = mean_diff_mean - (mean_diff_sd / 2)), alpha = 0.2)+
+#   theme_project_light()+
+#   scale_y_continuous("Absolute Mean Difference")+
+#   labs(title = "Absolute Mean Difference between Two Groups from 1,000,000 Bayesian T-Tests")
+# 
+# bf_df_2 |> 
+#   ggplot(aes(x = n, y = mean_diff_mean))+
+#   geom_point()+
+#   geom_ribbon(aes(ymax = mean_diff_mean + (mean_diff_sd / 2), ymin = mean_diff_mean - (mean_diff_sd / 2)), alpha = 0.2)+
+#   theme_project_light()+
+#   scale_y_continuous("Mean Difference")+
+#   labs(title = "Mean Difference between Two Groups from 1,000,000 Bayesian T-Tests")
 
 ```
 

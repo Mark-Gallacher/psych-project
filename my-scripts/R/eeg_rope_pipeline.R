@@ -228,7 +228,8 @@ generate_rope_df <- function(df, pipeline_attr, rope_func, null_rope, replicatio
   df_3 <- df_2 |> 
     dplyr::mutate(
       sig_rope = eval(rope_sig),
-      no_rope = dplyr::if_else(df_2$p < 0.05, 0, NA)
+      raw_sig = dplyr::if_else(df_2$p < 0.05, 0, NA),
+      bon_sig = dplyr::if_else(df_2$p < (0.05 / length(unique(df$time))), 0, NA),
     )
   
   return(df_3)

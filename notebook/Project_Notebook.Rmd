@@ -24,6 +24,10 @@ library(TOSTER) # for TOST equivalance testing
 source(here::here("other-scripts", "optim_equiv_func.R"))
 # to get functions to do for-loops for power calculations, see script for details
 source(here::here("my-scripts", "R", "pwr_calc_functions.R"))  
+
+source(here::here("my-scripts", "R", "project_themes.R"))
+
+base_size = 13 # so graphs are the same size
 ```
 # Chapter 1 - How Power and Effect relate to a *Static* alpha level, for a given Sample Size
 
@@ -31,7 +35,7 @@ source(here::here("my-scripts", "R", "pwr_calc_functions.R"))
 
 ```{r}
 # Sample Size
-sample_size <- c(5, seq(1, 9.5, 0.5) %o% 10^(1:3), 10^4)
+sample_size <- c(5:9, seq(1, 9.5, 0.2) %o% 10^(1:3), 10^4)
 l_sample <- length(sample_size)
 
 # Effect Size (Cohen's d) - One default value, and One list
@@ -46,7 +50,7 @@ l_many_power <- length(many_power)
 
 # Alpha - One default value, and One list
 alpha <- 0.05
-many_alpha <- c(1 %o% 10^(-1:-6))
+many_alpha <- c(1 %o% 10^(-1:-5))
 l_many_alpha <- length(many_alpha)
 ```
 
@@ -109,24 +113,67 @@ knitr::kable(x = head(es_by_pwr_df, n = 10))
 
 ```{r}
 eff_power_g1 <- es_by_pwr_df |> 
-  ggplot(aes(x = n, y = effect_size, colour = power))+
-  geom_line(alpha = 0.5, size = 1.5)+
+  ggplot(aes(x = n, y = effect_size, colour = as.numeric(power), group = power))+
+  geom_line(alpha = 0.8, size = 1.5)+
   scale_x_log10(name = "Sample Size")+
-  scale_y_continuous(name = "Effect Size")+
-  guides(colour = guide_legend(title = "Power"))+
-  ggtitle("Effect Size vs Sample Size, for different Powers")+
-  theme_minimal()
+  scale_y_continuous(name = "Cohen's d")+
+  guides(colour = guide_colourbar(title = "Power", barwidth = 10, barheight = .8, title.vjust = 1))+
+  ggtitle("Critical Effect Size vs Sample Size at Different Powers")+
+  theme_project_light(base_size = base_size)+
+  theme(panel.grid.major.y = element_line())
 
 eff_power_g1
 
-ggsave(plot = eff_power_g1, filename = "effect_power_graph.png", path = here::here("images"), dpi = 320, width = 10, height = 8)
+ggsave(plot = eff_power_g1, filename = "ch1_crit_eff_power.png", path = here::here("images"), dpi = 320, width = 10, height = 8)
 ```
 
 ---
 
 ```{r}
+output <- c()
 
+for(s in 1:length(sample_size)){
+  for(a in 1:length(many_alpha)){
+    
+    index <- (l_many_alpha * (s - 1)) + a   
+        
+    output[index] <- pwr.t.test(
+      n = sample_size[s],
+      sig.level = many_alpha[a],
+      power = 0.8,
+      type = "two.sample",
+      alternative = "two.sided")$d
+    
+  }
+}
+
+es_by_alpha_df <- tibble(
+  alpha = rep(many_alpha, times = l_sample),
+  n = rep(sample_size, each = l_many_alpha),
+  crit_eff = output
+)
+
+
+es_by_alpha_df |> 
+  ggplot(aes(x = n, y = crit_eff, colour = as.numeric(alpha), group = as.numeric(alpha)))+
+  geom_line(alpha = 0.8, size = 1.5)+
+  scale_x_log10(name = "Sample Size")+
+  scale_y_continuous(name = "Cohen's d", limits = c(0, 4))+
+  scale_color_gradient(name = bquote(alpha), 
+                       high = "#132B43", 
+                       low = "#56B1F7",
+                       trans = "log10", 
+                       breaks = c(0.1, .001, 0.00001), 
+                       labels = c("0.1", "0.001", "0.00001"),
+                       guide = guide_colourbar(barwidth = 15, barheight = .8, title.vjust = 1))+
+  ggtitle("Critical Effect Size vs Sample Size At Various Alpha Levels")+
+  theme_project_light(base_size = base_size)+
+  theme(panel.grid.major.y = element_line())
+
+ggsave(filename = "ch1_crit_eff_alpha.png", path = here::here("images"), dpi = 320, width = 10, height = 8)
 ```
+
+
 # Chapter 2 - How Power and Effect relate to a *Dynamic* alpha level, for a given sample size 
 
 
@@ -256,7 +303,7 @@ es_dyn_a_loop |>
   geom_point(alpha = 0.5, size = 1.5)+
   scale_x_log10(name = "Sample Size")+
   scale_y_continuous(name = "Effect Size")+
-  guides(colour = guide_legend(title = "Effect Size"))+
+  guides(colour = guide_legend(title = "Alpha Rule"))+
   ggtitle("Dynamic Alpha Levels (at Power level of 0.8)")+
   theme_minimal()
 ```

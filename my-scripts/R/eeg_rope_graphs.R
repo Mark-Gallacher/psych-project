@@ -3,7 +3,8 @@ library(tidyverse)
 ## theme for the plots
 source(here::here("my-scripts", "R", "project_themes.R"))
 # set theme to project_theme
-theme_set(theme_project_light())
+base_size = 12
+theme_set(theme_project_light(base_size = base_size))
 
 
 ## default colours
@@ -18,8 +19,12 @@ theme_set(theme_project_light())
 # the demo shows 8 colours and the second and second last ones are my favourite
 
 line_colours <- c("#2f357c", "#bf3729", "#235070")
+ 
 # colours for the lines of significance
-sig_colours <-  c("#F8766D", "#2f357c", "darkgreen")
+# Raw - Bonferroni - Null ROPE - Alternative ROPE (in that order)
+
+sig_colours <-  c("#F8766D","purple3","#2f357c", "darkgreen")
+
 # grey for ci range - fill
 grey = "azure4"
 
@@ -221,7 +226,7 @@ plot_base <- function(df){
          colour = "Condition")+
     scale_colour_manual(values = MetBrewer::met.brewer("Austria", 3),
                         labels = c("1", "2", "3"), 
-                        guide = guide_legend(override.aes = list(linewidth = 2)))
+                        guide = guide_legend(override.aes = list(linewidth = 2, shape = NA), order = 1))
   
   return(p)
 }
@@ -234,10 +239,14 @@ plot_sim_base <- function(df, rope_df = NULL, replication = F){
   
   if(!is.null(rope_df)){
   p <- p +
-    geom_point(data = rope_df, aes(x = time, y = no_rope - 1, fill = '1'), 
-               size = line_size, colour = sig_colours[1], inherit.aes = F, stroke = NA, shape = 22, show.legend = F)+
-    labs(subtitle = glue::glue("Lines at Bottom represent significance,
-                            <b><span style='color:{fill_colours[2]};'>Raw p-values </span></b>"))
+    geom_point(data = rope_df, aes(x = time, y = raw_sig - 1.1, fill = '1'), 
+               size = line_size, colour = sig_colours[1], inherit.aes = F, stroke = NA, shape = 22, show.legend = T)+
+    geom_point(data = rope_df, aes(x = time, y = bon_sig - 1, fill = '2'), 
+               size = line_size, colour = sig_colours[2], inherit.aes = F, stroke = NA, shape = 22, show.legend = T)+
+    scale_fill_manual("Significance", 
+                      values = sig_colours[1:2], 
+                      labels = c("Raw ", "Bonf. Corrected"),
+                      guide = guide_legend(override.aes = list(size = 5, colour = NA), order = 2))
   }else{
     message("Argument 'rope_df' was empty - No lines of Significance were plotted")
   }
@@ -256,16 +265,21 @@ plot_rep_base <- function(df, rope_df = NULL, replication = T){
     plot_base()+
     facet_grid(n_trial ~ experiment, 
                labeller = labeller(n_trial = row_labels, experiment = col_labels), 
-               scales = "free_y")+
-    labs(subtitle = glue::glue("Lines at Bottom represent significance,
-                            <b><span style='color:{sig_colours[1]};'>Raw p-values </span></b>"))
+               scales = "free_y")
   
   if(!is.null(rope_df)){
     ropes <- unique(rope_df$rope)
     p <- p + 
       geom_point(data = subset(rope_df, rope == ropes[[1]]), 
-               aes(x = time, y = no_rope - 1, fill = '1'), 
-               size = line_size, inherit.aes = F, alpha = line_alpha, stroke = NA, shape = 22, show.legend = F)
+               aes(x = time, y = raw_sig - 1.2, fill = '1'), 
+               size = line_size, inherit.aes = F, alpha = line_alpha, stroke = NA, shape = 22, show.legend = T)+
+      geom_point(data = subset(rope_df, rope == ropes[[1]]), 
+                 aes(x = time, y = bon_sig - 1, fill = '2'), 
+                 size = line_size, inherit.aes = F, alpha = line_alpha, stroke = NA, shape = 22, show.legend = T)+
+      scale_fill_manual("Significance", 
+                        values = sig_colours[1:2], 
+                        labels = c("Raw ", "Bonf."),
+                        guide = guide_legend(override.aes = list(size = 5, colour = NA), order = 2))
   }else{
     message("Argument 'rope_df' was empty - No lines of Significance were plotted")
   }
@@ -279,35 +293,34 @@ plot_rope <- function(p, df, null_rope = T, change_subtitle = F, replication = F
   subs_ropes <- subtitle_for_ropes[ropes]
   plots <- list()
   
-  rope_label = c("Raw p-values", "Null ROPE Sig.")
+  rope_label = c("Raw ", "Bonf.","Null ROPE")
   
   if(null_rope){
     ribbon_fill = "black"
-    point_fill = sig_colours[1:2]
-    fill_group = '2'
+    point_fill = sig_colours[1:3]
+    fill_group = '3'
+    title <- "Applying a ROPE to Achieve Statistical Consistency"
     }else{
     ribbon_fill = "#28E2E5"
     point_fill = sig_colours
-    fill_group = '3'
-    rope_label = c("Raw p-values", "Null ROPE Sig.", "Alternative ROPE Replication")
-    title <- "Applying an Alternative ROPE to Replicate ERP Effects and to Achieve Statistical Consistency"
+    fill_group = '4'
+    rope_label = c(rope_label, "Alternative ROPE")
+    title <- "Applying an Alternative ROPE to Replicate ERP Effects"
     gap <- 0.8
-  }
+    }
+  
   if(replication){
-    rope_sig <- "Replication Using ROPE"
-    if(!null_rope){
-      # rope_label = c("Raw p-values", "Null ROPE Sig.", "Alternative ROPE Replication")
-      # title <- "Applying an Alternative ROPE to Replicate ERP Effects and to Achieve Statistical Consistency"
+    
+    if(null_rope == FALSE){
       gap <- 0.6
     }else{
-      title <- "Applying a Null ROPE to Replicate ERP Effects and to Achieve Statistical Consistency"
       gap <- 0.8
-      }
+    }
+    
   }else{
-    title <- "Applying a ROPE to Achieve Statistical Consistency"
-    rope_sig <- "Significant from ROPE"
     gap <- 0.9
   }
+  
   for (g in 1:length(p)) {
     if(change_subtitle){
     null_rope <- p[[g]]$labels$subtitle |> 
@@ -327,7 +340,17 @@ plot_rope <- function(p, df, null_rope = T, change_subtitle = F, replication = F
           full_subtitle <- quote(glue::glue("Region of Practical Equivalence: <b><span>{rope_subtitle}</b></span>"))
         } 
       
-      df_rope <- subset(df, rope == ropes[[i]])
+      if(replication == T){
+
+        df_rope <- subset(df, rope == ropes[[i]] & experiment == "B")
+
+      }else{
+
+        df_rope <- subset(df, rope == ropes[[i]])
+
+        }
+
+      # df_rope <- subset(df, rope == ropes[[i]])
       
       plots[[length(ropes) * (g - 1) + i]] <- p[[g]] + 
         geom_ribbon(data = df_rope, 
@@ -335,7 +358,7 @@ plot_rope <- function(p, df, null_rope = T, change_subtitle = F, replication = F
                                   alpha = fill_alpha, 
                                   fill = ribbon_fill, 
                                   colour = NA, 
-                                  inherit.aes = F )+
+                                  inherit.aes = F)+
         geom_point(data = df_rope, 
                    aes(x = time, y = sig_rope - gap, fill = fill_group), 
                    inherit.aes = F, 
@@ -350,7 +373,7 @@ plot_rope <- function(p, df, null_rope = T, change_subtitle = F, replication = F
                           values = point_fill, 
                           labels = rope_label,
                           guide = guide_legend(override.aes = list(size = 5, colour = NA)))+
-        theme_project_light()
+        theme_project_light(base_size = base_size)
     }
   }
   

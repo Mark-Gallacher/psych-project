@@ -145,7 +145,10 @@ source(here::here("my-scripts", "R", "eeg_rope_graphs.R"))
 ## theme for the plots
 source(here::here("my-scripts", "R", "project_themes.R"))
 # set theme to project_theme
-theme_set(theme_project_light())
+base_size = 12
+theme_set(theme_project_light(base_size = base_size))
+
+
 ```
 
 
@@ -173,9 +176,9 @@ We are going to define two ROPE (Regions of Practical Equivalence) using the dat
 Once the ROPE is created for an "experiment", it will superimpose the data of the next experiment, to see how the new data fits to the previous study. If the Confidence intervals are perfectly contained in a ROPE, then we can consider that as support for rejecting and maintaining the null hypothesis. For example, if the Confidence interval is inside the Null ROPE, even if the difference is statistically significant, this should likely be interpreted as evidence for keeping the null. Likewise, if the alternative ROPE covers the majority of the ERP amplitude, then that would be evidence of a replication of the underlying effect and thus, evidence to reject the null. 
 
 ```{r,  warning=F, message=F}
-.ch4_sim_1 <- plot_rope(.p1, rope_df_1, null_rope = T, change_subtitle = F)
+.sim_1 <- plot_rope(.p1, rope_df_1, null_rope = T, change_subtitle = F)
 
-.ch4_sim_1
+.sim_1
 ```
 As sample size increases the effect becomes more clear and obvious, and the background noise appears to cancel itself out. This in turn increases the size of the alternative ROPEs, both ROPE defined from raw p-values and bonferroni corrected are wided at the larger sample size. However, raw p-values cause the ROPE to cover the entire range of values, including values where an effect is unlikely. Moreover, it appears only the Bonferroni defined ROPE maintains a gap between the two ROPEs, the Null and Alternative, whch would allow easier interpretation. For, if the ROPEs overlap, and the Confidence interval stretches across both, then it is unclear which ROPE it supports, preventing us to make a clear preference of a hypothesis. 
 
@@ -184,10 +187,10 @@ It is worth noting that the peak of each of the effects appears to go above the 
 ### Experiments without an Effect
 
 To see how a ROPE can prevent false positives, we ran the EEG simulation but with no underlying effect, therefore any statistically significant results are false positives. 
-```{r, warning=F}
-.ch4_sim_2 <- plot_rope(.p2, rope_df_2, null_rope = T)
+```{r, warning=F, message=F}
+.sim_2 <- plot_rope(.p2, rope_df_2, null_rope = T)
 
-.ch4_sim_2
+.sim_2
 ```
 
 ### Replication of ERP peaks
@@ -228,13 +231,13 @@ rep_rope_2 <- rep_df_2 |>
 ```
 
 ```{r, warning=F, message = F}
-.ch4_rep_1 <- plot_rope(.rep_p1, rep_rope_1, null_rope = T, replication = T)
-.ch4_rep_1
+.rep_1 <- plot_rope(.rep_p1, rep_rope_1, null_rope = T, replication = T)
+.rep_1
 ```
 
 ```{r, warning = F, message = F}
-.ch4_rep_2 <- plot_rope(.rep_p2, rep_rope_2, null_rope = T, replication = T)
-.ch4_rep_2
+.rep_2 <- plot_rope(.rep_p2, rep_rope_2, null_rope = T, replication = T)
+.rep_2
 ```
 ### Alternative ROPE
 
@@ -258,15 +261,15 @@ rope_df_2a <- sim_df_2 |>
 
 ```{r, warning= F, message=F}
 ## adding alternative rope to previous simulations
-.ch4_sim_1a <- plot_rope(.ch4_sim_1, df = rope_df_1a, null_rope = F, change_subtitle = T, replication = F)
-.ch4_sim_1a
+.sim_1a <- plot_rope(.sim_1, df = rope_df_1a, null_rope = F, change_subtitle = T, replication = F)
+.sim_1a
 ```
 
 
 ```{r, warning= F, message=F}
 ## adding alternative rope to previous simulations
-.ch4_sim_2a <- plot_rope(.ch4_sim_2, df = rope_df_2a, null_rope = F, change_subtitle = T)
-.ch4_sim_2a
+.sim_2a <- plot_rope(.sim_2, df = rope_df_2a, null_rope = F, change_subtitle = T)
+.sim_2a
 ```
 
 ## Applying Alternative ROPE to replications
@@ -289,13 +292,13 @@ rep_rope_2a <- rep_df_2 |>
 ```
 
 ```{r, message=F, warning=F}
-.ch4_rep_1a <- plot_rope(.ch4_rep_1, df = rep_rope_1a, null_rope = F, change_subtitle = T, replication = T)
-.ch4_rep_1a[[1]]
+.rep_1a <- plot_rope(.rep_1, df = rep_rope_1a, null_rope = F, change_subtitle = T, replication = T)
+.rep_1a
 ```
 
 ```{r, message=F, warning=F}
-.ch4_rep_2a <- plot_rope(.ch4_rep_2, df = rep_rope_2a, null_rope = F, change_subtitle = T, replication = T)
-.ch4_rep_2a
+.rep_2a <- plot_rope(.rep_2, df = rep_rope_2a, null_rope = F, change_subtitle = T, replication = T)
+.rep_2a
 ```
 
 ### Dynamic Alpha Rule - min(alpha, beta)
@@ -330,17 +333,18 @@ dyn_stats <- rep_df_1 |>
 # dyn_stats
 
 .rep_dyn_p1 <- .rep_p1[[1]] + 
-  geom_point(data = dyn_stats, aes(x = time, y = sig_rule1 - .8, fill = '2' ),
+  geom_point(data = dyn_stats, aes(x = time, y = sig_rule1 - .8, fill = '3' ),
              alpha = line_alpha, inherit.aes = F, size = 1, shape = 22, stroke = NA)+
-  geom_point(data = dyn_stats, aes(x = time, y = sig_rule2 - .6, fill = '3' ),
+  geom_point(data = dyn_stats, aes(x = time, y = sig_rule2 - .6, fill = '4' ),
              alpha = line_alpha, inherit.aes = F, size = 1, shape = 22, stroke = NA)+
   scale_fill_manual("Significance", values = sig_colours, 
-                    labels = c("Raw p-values", "Predict Cohen's d", "Predict 1/2 Cohen's d"),  
+                    labels = c("Raw", "Bonf.", "Cohen's d", "1/2 of Cohen's d"),  
                     guide = guide_legend(override.aes = list(size = 5, colour = NA)))+
-  labs(subtitle = "Using Dynamic Alpha Rule - <b>Min(alpha, beta)</b>")+
-  theme_project_light()
+  labs(subtitle =  " Using Dynamic Alpha Rule - <b> Min (\u03B1, \u03B2) </b>")+
+  theme_project_light(base_size = base_size)
 
 .rep_dyn_p1
+
 ```
 
 ```{r, warning= F}
@@ -415,15 +419,15 @@ rep_bf_1 <- sim_repli_eeg_pipeline(eeg_pipeline_attr, seed = seed, total_experim
 .p_bf1 <- sim_bf_1 |> 
   plot_sim_base()
   
-.ch4_bf_p1 <- .p_bf1[[1]] + 
+.bf_p1 <- .p_bf1[[1]] + 
   geom_point(data = sim_bf_1, aes(x = time, y = bf_sig -.9, fill = '1' ), shape = 22, stroke = NA, inherit.aes = F)+
   geom_point(data = sim_bf_1, aes(x = time, y = bf_null_sig - 1, fill = '2'), shape = 22, stroke = NA, inherit.aes = F)+
   scale_fill_manual("Bayes Factor", labels = c("Support Alternative", "Support Null"), values = fill_colours,
                     guide = guide_legend(override.aes = list(size = 5, colour = NA)))+
   labs(subtitle = "Using Bayesian Model Comparison - <b>Bayes Factors</b>")+
-  theme_project_light()
+  theme_project_light(base_size = base_size)
 
-.ch4_bf_p1
+.bf_p1
 ```
 
 
@@ -431,15 +435,15 @@ rep_bf_1 <- sim_repli_eeg_pipeline(eeg_pipeline_attr, seed = seed, total_experim
 .rep_p1_bf <- rep_bf_1 |> 
   plot_rep_base(replication = T)
   
-.ch4_rep_bf_p1 <- .rep_p1_bf[[1]] + 
+.rep_bf_p1 <- .rep_p1_bf[[1]] + 
   geom_point(data = sim_bf_1, aes(x = time, y = bf_sig -.8, fill = '1' ), shape = 22, stroke = NA, inherit.aes = F)+
   geom_point(data = sim_bf_1, aes(x = time, y = bf_null_sig - 1, fill = '2'), shape = 22, stroke = NA, inherit.aes = F)+
-  scale_fill_manual("Bayes Factor", labels = c("Support Alternative", "Support NUll"), values = fill_colours,
+  scale_fill_manual("Bayes Factor", labels = c("Supports Alternative", "Supports Null"), values = fill_colours,
                     guide = guide_legend(override.aes = list(size = 5, colour = NA)))+
   labs(subtitle = "Using Bayesian Model Comparison - <b>Bayes Factors</b>")+
-  theme_project_light()
+  theme_project_light(base_size = base_size)
 
-.ch4_rep_bf_p1
+.rep_bf_p1
 ```
 
 
@@ -451,10 +455,10 @@ sim_df_1
 
 ```{r,  eval = F, include=F}
 # Code to save each graph in ch4
-sim_plots <- c("sim1_" = .ch4_sim_1, "sim2_" = .ch4_sim_2, "sim1a_" = .ch4_sim_1a, "sim2a_" = .ch4_sim_2a)
-rep_plots <- c("rep1_"= .ch4_rep_1, "rep2_"= .ch4_rep_2, "rep1a_"= .ch4_rep_1a,"rep2a_"= .ch4_rep_2a)
+sim_plots <- c("sim1_" = .sim_1, "sim2_" = .sim_2, "sim1a_" = .sim_1a, "sim2a_" = .sim_2a)
+rep_plots <- c("rep1_"= .rep_1, "rep2_"= .rep_2, "rep1a_"= .rep_1a,"rep2a_"= .rep_2a)
 dyn_plots <- c("rep_dyn1" = list(.rep_dyn_p1), "rep_dyn2" = list(.rep_dyn2_p1))
-bf_plots <- c("sim_bf1" = list(.ch4_bf_p1), "rep_bf1" = list(.ch4_rep_bf_p1))
+bf_plots <- c("sim_bf1" = list(.bf_p1), "rep_bf1" = list(.rep_bf_p1))
 
 save_plots <- function(plots, chapter.no = NULL, is.rope = T){
  
@@ -486,14 +490,15 @@ save_plots <- function(plots, chapter.no = NULL, is.rope = T){
       }
       
       # combine name and rope
-     filename <- paste("ch", chapter.no, "_", name[[i]], plotname, ".png",sep="")
-     ggsave(plot = plots[[i]], file = here::here("images", filename), width = 10, height = 8, dpi = 360)
+     folder <- paste0("ch", chapter.no)
+     filename <- paste(name[[i]], plotname, ".png",sep="")
+     ggsave(plot = plots[[i]], file = here::here("images", folder, filename), width = 10, height = 8, dpi = 360)
      cat(paste0("Saved Graph with Name -- '", filename, "' --\n"))
     }
 
  message(
      paste0("Saved Graphs to -- '", 
-           crayon::green( here::here("images")), "' -- with Names -- ", 
+           crayon::green( here::here("images", folder)), "' -- with Names -- ", 
            crayon::green(paste0("'ch", chapter.no, "_ ... .png'")), " --")
      )
     
@@ -515,8 +520,8 @@ It is probably worth replicating this pipeline (the above process) several times
 seeds = 1:1000 # the seeds that were used in the 1000 repetitions of the Pipeline
 
 ## Reading the Pipeline Simulations - 1000 repetitions
-sim_rope_1 <- read_csv(here::here("sim_data", "sim_egg_pipeline_eff.csv"))
-sim_rope_2 <- read_csv(here::here("sim_data", "sim_egg_pipeline_no_eff.csv"))
+sim_rope_1 <- read_csv(here::here("sim_data","ch4_eeg_sims", "sim_egg_pipeline_eff.csv"))
+sim_rope_2 <- read_csv(here::here("sim_data","ch4_eeg_sims", "sim_egg_pipeline_no_eff.csv"))
 
 ## Evaluating the ROPEs of Number of False Positives
 eval_rope_1 <- sim_rope_1 |> 

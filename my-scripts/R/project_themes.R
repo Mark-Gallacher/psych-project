@@ -1,11 +1,11 @@
 library(tidyverse)
 library(ggtext)
 
-theme_project_light <- function(){
+theme_project_light <- function(base_size = 10){
   
   # font <- "TT Arial"   #assign font family up front
   
-  theme_minimal(base_size = 10)  %+replace%
+  theme_minimal(base_size = base_size)  %+replace%
         theme(# Bold, bigger title
               plot.title = element_markdown(face = "bold", size = rel(1.5), hjust = 0, lineheight = 1, vjust = 1),
               # Plain, slightly bigger subtitle that is grey
@@ -14,6 +14,7 @@ theme_project_light <- function(){
               plot.caption = element_text(face = "italic", size = rel(0.7), color = "grey60", hjust = 0),
               # Bold legend titles
               legend.title = element_text(face = "bold", size = rel(1.3)),
+              
               legend.text = element_text(size = rel(1.2)),
               # legend underneath title
               legend.position = "top",
@@ -22,18 +23,22 @@ theme_project_light <- function(){
               # Bold axis titles
               axis.title = element_text(face = "bold"),
               # Add some space above the x-axis title and make it left-aligned
-              axis.title.x = element_text(margin = margin(t = 10), hjust = 0.5),
+              axis.title.x = element_text(size = rel(1.2), margin = margin(t = 10), hjust = 0.5),
               # Add some space to the right of the y-axis title and make it top-aligned
-              axis.title.y = element_text(margin = margin(r = 10), hjust = 0.5, angle = 90),
+              axis.title.y = element_text(size = rel(1.2), margin = margin(r = 10), hjust = 0.5, angle = 90),
               
-              plot.background = element_rect(fill = "#FFFFFF"), 
+              axis.text = element_text(size = rel(1.1)),
+              
+              plot.background = element_rect(fill = "#FFFFFF", colour = NA, linewidth = 0), 
               
               panel.grid.minor.x = element_blank(),
+              
               panel.grid.minor.y = element_blank(),
+              
               panel.grid.major.y = element_blank(),
               
-              
-              
+              panel.border = element_blank()
+      
               )
       
 }

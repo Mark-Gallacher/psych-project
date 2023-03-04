@@ -6,7 +6,7 @@
 
 increment <-  5
 
-
+## Use simultate_t_tests() instead
 get_pvals <- function(sample_size, break_loop = TRUE, alpha = 0.05){
   library(tidyverse)
   
@@ -61,7 +61,7 @@ get_pvals_one_sample <- function(sample_size, break_loop = TRUE, alpha = 0.05){
 
 # More complex function can stop at significant results, 
 # use a ROPE and define a rope
-get_mean_diff <- function(sample_size, 
+simulate_t_tests <- function(sample_size, 
                           alpha = 0.05,
                           break_loop = TRUE, 
                           mean_diff = 0, 
@@ -80,18 +80,22 @@ get_mean_diff <- function(sample_size,
   ci <- "conf.int"
   
   # empty lists for samples
-  g1_sample = c()
-  g2_sample = c()
+  s1 = c()
+  s2 = c()
   
   for (i in 1:len_n){
     ## Sample for group 1 and 2
     ## Increment of 5s
-    g1_sample <- c(g1_sample, rnorm(increment, mean = 0))
-    g2_sample <- c(g2_sample, rnorm(increment, mean = 0 + mean_diff))
-    
+    if(break_loop){
+      s1 <- c(s1, rnorm(increment, mean = 0))
+      s2 <- c(s2, rnorm(increment, mean = 0 + mean_diff))
+    }else{
+      s1 <- rnorm(sample_size[[i]], mean = 0)
+      s2 <- rnorm(sample_size[[i]], mean = 0 + mean_diff)
+    }
     t_test <- t.test(
-      g1_sample, 
-      g2_sample, 
+      s1, 
+      s2, 
       alternative = "two.sided", 
       conf.level = 1 - alpha, 
       var.equal = TRUE)
@@ -105,12 +109,11 @@ get_mean_diff <- function(sample_size,
           (t_test[[ci]][[1]] > margin) | (t_test[[ci]][[2]] < -margin)
           ){ # check if difference is bigger than rope
           ## If lower ci is above or upper ci is below, then we are completely outside rope
-          
-        p_vector[i] <- t_test[[p]]
-        mean_diff_vector[i] <- mean_diff
-        conf_vector[i, 1] <- t_test[[ci]][[1]]
-        conf_vector[i, 2] <- t_test[[ci]][[2]]
-        break
+            p_vector[i] <- t_test[[p]]
+            mean_diff_vector[i] <- mean_diff
+            conf_vector[i, 1] <- t_test[[ci]][[1]]
+            conf_vector[i, 2] <- t_test[[ci]][[2]]
+            break
         }else{
           next 
         }
@@ -136,56 +139,68 @@ get_mean_diff <- function(sample_size,
   return(output)
 }
 
-ttest_fast_loop <- function(sample_size, 
-                          alpha = 0.05, 
-                          mean_diff = 0){
+summarise_t_test_loop <- function(df, n, repeats, seq.test = T, margins = F){
   
-  len_n <- length(sample_size)
-  
-  p <- "p.value"
-  mean <- "estimate"
-  ci <- "conf.int"
-  
-  s1 <- s2 <- c()
-  
-  output <-  foreach::foreach (s = 1:len_n, .combine = "rbind") %dopar%{
-    # generate sample
-    s1 = c(s1, rnorm(increment, mean = 0, sd = 1))
-    s2 = c(s2, rnorm(increment, mean = 0 + mean_diff, sd = 1))
-    
-    # t test between two samples
-    t_test <- t.test(s1, s2, 
-                     alternative = "two.sided", 
-                     conf.level = 1 - alpha, 
-                     var.equal = FALSE)
-    
-    # finding the mean diff
-    mean_diff <- abs(t_test[[mean]][[1]] - t_test[[mean]][[2]])
-    
-    # combining output
-    c(alpha, sample_size[s], t_test[[p]], mean_diff, t_test[[ci]][[1]], t_test[[ci]][[2]]) 
-    
+  if(margins){
+    times <- repeats * length(unique(df$margins))
+  }else{
+    times <- repeats * length(unique(df$alpha))
   }
   
-  output |> 
-    tibble::as_tibble(.name_repair = ~ c("alpha", "n", "p", "mean_diff", "l_ci", "u_ci"))
-}
-
-
-summarise_t_test_loop <- function(df, n, repeats){
-  
-  result <- df |> 
-    mutate(n = n*2) |> 
-    pivot_longer(cols = -n, 
-                 values_to = "pval", 
-                 names_to = "set") |> 
-    group_by(n)  |> 
-    na.omit() |>
-    summarise(count = n(),
-              prop = count /repeats)
-  
+  if(seq.test){
+    if(margins){
+      ## Sequential t-tests with ROPE
+      result <- df |> 
+        mutate(n = as.integer(rep(n*2, times = times))) |> 
+        na.omit() |> 
+        group_by(margins, n) |> 
+        summarise(failed = sum(!is.na(p))/repeats, 
+                  passed = (1 - failed),
+                  mean_diff = mean(mean_diff, na.rm = TRUE), 
+                  l_ci = mean(l_ci, na.rm = TRUE), 
+                  u_ci = mean(u_ci, na.rm = TRUE), 
+                  .groups = "drop")
+    }else{
+      ## Sequential t-tests without ROPE
+      result <- df |> 
+        mutate(n = as.integer(rep(n*2, times = times))) |> 
+        na.omit() |> 
+        group_by(alpha, n) |> 
+        summarise(failed = sum(!is.na(p))/repeats, 
+                  passed = (1 - failed),
+                  mean_diff = mean(mean_diff, na.rm = TRUE), 
+                  l_ci = mean(l_ci, na.rm = TRUE), 
+                  u_ci = mean(u_ci, na.rm = TRUE), 
+                  .groups = "drop")
+      }
+    }else{
+      if(margins){
+        ## Simulated t-tests with ROPE
+        result <- df |> 
+          mutate(n = as.integer(rep(n*2, times = times))) |> 
+          na.omit() |> 
+          group_by(margins, n) |> 
+          summarise(failed = sum( (p < 0.05) & (l_ci < -margins | u_ci > margins) ) / repeats, 
+                    passed = (1 - failed),
+                    mean_diff = mean(mean_diff, na.rm = TRUE), 
+                    l_ci = mean(l_ci, na.rm = TRUE), 
+                    u_ci = mean(u_ci, na.rm = TRUE), 
+                    .groups = "drop")
+      }else{
+        ## Simulated t-tests without ROPE
+        result <- df |> 
+          mutate(n = as.integer(rep(n*2, times = times))) |> 
+          na.omit() |> 
+          group_by(alpha, n) |> 
+          summarise(failed = sum(p < alpha)/repeats, 
+                    passed = (1 - failed),
+                    mean_diff = mean(mean_diff, na.rm = TRUE), 
+                    l_ci = mean(l_ci, na.rm = TRUE), 
+                    u_ci = mean(u_ci, na.rm = TRUE), 
+                    .groups = "drop")
+      }
+      }
   return(result)
-  
 }
 
 
