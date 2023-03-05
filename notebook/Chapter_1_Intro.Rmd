@@ -1,0 +1,772 @@
+---
+title: "Chapter 1 - Introduction to Consistency"
+output:
+  html_document:
+    toc: yes
+    df_print: paged
+  html_notebook:
+    toc: yes
+---
+```{r, setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.height = 8, fig.width = 10)
+```
+
+#### Libraries
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+library(pwr) # for Power calculation
+library(TOSTER) # for TOST equivalance testing
+
+```
+#### User-Defined Functions
+```{r User-Defined Function}
+## setting relative direct
+here::i_am("./notebook/Chapter_1_Intro.Rmd")
+# to get optim_equiv function (equivalance testing - (Campbell & Gustafson, 2022))
+source(here::here("other-scripts", "optim_equiv_func.R"))
+# to get functions to do for-loops for power calculations, see script for details
+source(here::here("my-scripts", "R", "pwr_calc_functions.R"))  
+
+source(here::here("my-scripts", "R", "project_themes.R"))
+
+base_size = 13 # so graphs are the same size
+```
+# Chapter 1 - How Power and Effect relate to a *Static* alpha level, for a given Sample Size
+
+### Setting up the parametres for Power Calculation
+
+```{r}
+# Sample Size
+sample_size <- c(5:9, seq(1, 9.5, 0.2) %o% 10^(1:3), 10^4)
+l_sample <- length(sample_size)
+
+# Effect Size (Cohen's d) - One default value, and One list
+cohens_d <- 0.5
+many_cohens_d <- seq(0.1, 1, 0.1)
+l_many_cohen <- length(many_cohens_d)
+
+# Power - One default value, and One list
+power <- 0.9
+many_power <- seq(0.5, 0.90, 0.1)
+l_many_power <- length(many_power)
+
+# Alpha - One default value, and One list
+alpha <- 0.05
+many_alpha <- c(1 %o% 10^(-1:-5))
+l_many_alpha <- length(many_alpha)
+```
+
+#### Displaying Output for Clarity
+
+```{r}
+cat("Sample Size :", sample_size)
+cat("Cohen's d :", many_cohens_d)
+cat("Power :", many_power)
+cat("Alpha :", many_alpha)
+```
+## *Power* vs Sample Size, for a given Effect Size
+
+#### Calculating Power while iterating through different effect and sample sizes
+
+```{r}
+pwr_by_es_df <- get_tidy_power_or_effect(
+  col_vec = many_cohens_d,      # Iterate over different effect sizes
+  row_vec = sample_size, # Use this vector for sample sizes
+  value_colname = "power",       # Create col called to store values
+  name_colname = "effect_size",  # Create col called to show what we iterated over
+  get_power = TRUE               # Telling function we have supplied effect size, and want power
+)
+```
+
+```{r}
+knitr::kable(x = head(pwr_by_es_df, n = 10))
+```
+### Plotting Power Curves
+
+```{r}
+pwr_by_es_df |> 
+  ggplot(aes(x = n, y = power, colour = effect_size))+
+  geom_line(alpha = 0.5, size = 1.5)+
+  scale_x_log10(name = "Sample Size")+
+  scale_y_continuous(name = "Power")+
+  guides(colour = guide_legend(title = "Cohen's d"))+
+  ggtitle("Power vs Sample Size, for different Cohen's d")+
+  theme_minimal()
+```
+
+## *Effect Size* vs Sample Size, for a given Power
+
+#### Calculating Effect Size while iterating through different levels of Power and sample sizes
+
+```{r}
+es_by_pwr_df <- get_tidy_power_or_effect(
+  col_vec = many_power,
+  row_vec = sample_size, 
+  value_colname = "effect_size",    
+  name_colname = "power", 
+  get_power = FALSE)
+```
+
+```{r}
+knitr::kable(x = head(es_by_pwr_df, n = 10))
+```
+
+###  Plotting Effect Size Curves
+
+```{r}
+eff_power_g1 <- es_by_pwr_df |> 
+  ggplot(aes(x = n, y = effect_size, colour = as.numeric(power), group = power))+
+  geom_line(alpha = 0.8, size = 1.5)+
+  scale_x_log10(name = "Sample Size")+
+  scale_y_continuous(name = "Cohen's d")+
+  guides(colour = guide_colourbar(title = "Power", barwidth = 10, barheight = .8, title.vjust = 1))+
+  ggtitle("Critical Effect Size vs Sample Size at Different Powers")+
+  theme_project_light(base_size = base_size)+
+  theme(panel.grid.major.y = element_line())
+
+eff_power_g1
+
+ggsave(plot = eff_power_g1, filename = "ch1_crit_eff_power.png", path = here::here("images"), dpi = 320, width = 10, height = 8)
+```
+
+---
+
+```{r}
+output <- c()
+
+for(s in 1:length(sample_size)){
+  for(a in 1:length(many_alpha)){
+    
+    index <- (l_many_alpha * (s - 1)) + a   
+        
+    output[index] <- pwr.t.test(
+      n = sample_size[s],
+      sig.level = many_alpha[a],
+      power = 0.8,
+      type = "two.sample",
+      alternative = "two.sided")$d
+    
+  }
+}
+
+es_by_alpha_df <- tibble(
+  alpha = rep(many_alpha, times = l_sample),
+  n = rep(sample_size, each = l_many_alpha),
+  crit_eff = output
+)
+
+
+es_by_alpha_df |> 
+  ggplot(aes(x = n, y = crit_eff, colour = as.numeric(alpha), group = as.numeric(alpha)))+
+  geom_line(alpha = 0.8, size = 1.5)+
+  scale_x_log10(name = "Sample Size")+
+  scale_y_continuous(name = "Cohen's d", limits = c(0, 4))+
+  scale_color_gradient(name = bquote(alpha), 
+                       high = "#132B43", 
+                       low = "#56B1F7",
+                       trans = "log10", 
+                       breaks = c(0.1, .001, 0.00001), 
+                       labels = c("0.1", "0.001", "0.00001"),
+                       guide = guide_colourbar(barwidth = 15, barheight = .8, title.vjust = 1))+
+  ggtitle("Critical Effect Size vs Sample Size At Various Alpha Levels")+
+  theme_project_light(base_size = base_size)+
+  theme(panel.grid.major.y = element_line())
+
+ggsave(filename = "ch1_crit_eff_alpha.png", path = here::here("images"), dpi = 320, width = 10, height = 8)
+```
+
+
+# Chapter 2 - How Power and Effect relate to a *Dynamic* alpha level, for a given sample size 
+
+
+```{r}
+
+simple_alphas <- tibble(n = sample_size, 
+                        static_a = 0.05, 
+                        alpha_by_n = static_a/n,
+                        alpha_by_n_sqrt = static_a/sqrt(n),
+                        alpha_by_n_log = static_a/log(n)) |> 
+  pivot_longer(cols = -n, names_to = "alpha_func", values_to = "alpha")
+
+simple_alphas |> 
+  ggplot(aes(x = n, y = alpha, colour = alpha_func))+
+  geom_line(size = 2)+
+  theme_minimal()+
+  scale_x_log10("Sample Size")+
+  scale_y_continuous("Alpha")+
+  guides(colour = guide_legend(title = "Alpha Function"))
+
+```
+
+```{r}
+power_dyn_a_loop = list()
+
+for(a in unique(simple_alphas$alpha_func)){
+  
+alpha_vec<- simple_alphas |> 
+  filter(alpha_func == !! {{ a }}) |> 
+  select(alpha) |> 
+  unlist()
+
+power_dyn_a_loop[[a]] <- get_pwr_or_eff_dyn_alpha(
+    col_vec = many_cohens_d, 
+    row_vec = sample_size,
+    alpha_vec = alpha_vec,
+    get_power = TRUE) |> 
+  tidy_output_with_n(
+    col_vec = many_cohens_d,
+    row_vec = sample_size, 
+    value_colname = "power",
+    name_colname = "effect_size"
+  ) |> 
+  mutate(alpha_func = a)
+}
+
+power_dyn_a_loop <- power_dyn_a_loop |> 
+  bind_rows()
+
+knitr::kable(x = head(power_dyn_a_loop, n = 10))
+```
+
+```{r}
+power_dyn_a_loop |> 
+  ggplot(aes(x = n, y = power, colour = effect_size))+
+  geom_line(alpha = 0.5, size = 1.5)+
+  geom_point(alpha = 0.5, size = 1.5)+
+  scale_x_log10(name = "Sample Size")+
+  scale_y_continuous(name = "Power")+
+  guides(colour = guide_legend(title = "Effect Size"))+
+  ggtitle("Dynamic Alpha Levels")+
+  theme_minimal()+
+  facet_wrap(~alpha_func, nrow = 2)
+```
+
+```{r}
+power_dyn_a_loop |> 
+  filter(effect_size == 0.5) |>   
+  ggplot(aes(x = n, y = power, colour = alpha_func))+
+  geom_line(alpha = 0.5, size = 1.5)+
+  geom_point(alpha = 0.5, size = 1.5)+
+  scale_x_log10(name = "Sample Size")+
+  scale_y_continuous(name = "Power")+
+  guides(colour = guide_legend(title = "Alpha Function"))+
+  ggtitle("Dynamic Alpha Levels (Effect Size of 0.5 Cohen's d)")+
+  theme_minimal()
+```
+
+
+```{r}
+es_dyn_a_loop = list()
+
+for(a in unique(simple_alphas$alpha_func)){
+  
+alpha_vec<- simple_alphas |> 
+  filter(alpha_func == !! {{ a }}) |> 
+  select(alpha) |> 
+  unlist()
+
+es_dyn_a_loop[[a]] <- get_pwr_or_eff_dyn_alpha(
+    col_vec = many_power, 
+    row_vec = sample_size,
+    alpha_vec = alpha_vec,
+    get_power = FALSE) |> 
+  tidy_output_with_n(
+    col_vec = many_power,
+    row_vec = sample_size, 
+    value_colname = "effect_size",
+    name_colname = "power"
+  ) |> 
+  mutate(alpha_func = a)
+}
+
+es_dyn_a_loop <- es_dyn_a_loop |> 
+  bind_rows()
+
+knitr::kable(x = head(es_dyn_a_loop, n = 10))
+```
+```{r}
+es_dyn_a_loop |> 
+  ggplot(aes(x = n, y = effect_size, colour = power))+
+  geom_line(alpha = 0.5, size = 1.5)+
+  geom_point(alpha = 0.5, size = 1.5)+
+  scale_x_log10(name = "Sample Size")+
+  scale_y_continuous(name = "Effect Size")+
+  guides(colour = guide_legend(title = "Power"))+
+  ggtitle("Dynamic Alpha Levels")+
+  theme_minimal()+
+  facet_wrap(~alpha_func, nrow = 2)
+```
+
+```{r}
+es_dyn_a_loop |> 
+  filter(power == 0.8) |>   
+  ggplot(aes(x = n, y = effect_size, colour = alpha_func))+
+  geom_line(alpha = 0.5, size = 1.5)+
+  geom_point(alpha = 0.5, size = 1.5)+
+  scale_x_log10(name = "Sample Size")+
+  scale_y_continuous(name = "Effect Size")+
+  guides(colour = guide_legend(title = "Alpha Rule"))+
+  ggtitle("Dynamic Alpha Levels (at Power level of 0.8)")+
+  theme_minimal()
+```
+
+
+## Alpha vs Sample Size, where *alpha~N~ = min(alpha, beta)*
+```{r}
+dyn_alpha   <- array(NA, dim = c(l_sample, l_many_cohen))  # array for new dynamic alphas  
+power_array <- array(NA, dim = c(l_sample, l_many_cohen))  # array for powers to find beta, for new alphas
+power_dyn_a <- array(NA, dim = c(l_sample, l_many_cohen))  # array for powers from new alphas 
+cohen_dyn_a <- array(NA, dim = c(l_sample, l_many_power))  # array for effect sizes from new alphas 
+```
+#### Calculating Power while iterating through different Effect and sample sizes - to find beta, then *min(alpha, beta)*
+```{r}
+for(n in 1:l_sample){
+  for(d in 1:l_many_cohen){
+    power_array[n, d] <- pwr.t.test(sig.level = alpha, 
+                                  d = many_cohens_d[d], 
+                                  n = sample_size[n], 
+                                  power = NULL, 
+                                  type="paired",
+                                  alternative="two.sided")$power
+    
+    beta_value <- 1-power_array[n,d]
+    dyn_alpha[n,d] <- min(alpha, beta_value)
+  }
+}
+
+dyn_alpha_df <- tidy_output_with_n(
+  array = dyn_alpha,
+  col_vec = many_cohens_d,
+  row_vec = sample_size, 
+  value_colname = "alpha",
+  name_colname = "effect_size"
+  )
+
+knitr::kable(x = head(dyn_alpha_df, n = 10))
+```
+
+
+###  Plotting Alpha Curves
+```{r}
+dyn_alpha_df |> 
+  ggplot(aes(x = n, y = alpha, colour = effect_size))+
+  geom_line(alpha = 0.5, size = 1.5)+
+  geom_point(alpha = 0.5, size = 1.5)+
+  scale_x_log10(name = "Sample Size")+
+  scale_y_continuous(name = "Alpha")+
+  guides(colour = guide_legend(title = "Effect Size"))+
+  ggtitle("Dynamic Alpha Levels - min(alpha, beta)")+
+  theme_minimal()
+```
+
+```{r}
+## Sample alphas were negative and some were zero (~ -3e-12) - but pwr.t.test needs alpha to be a positive
+## non-zero number. (Might be rounding errors in pwr.t.test function to produce negative alphas)
+## The smallest positive non-zero alpha in the dyn_alpha was 1e-16, so that would be our new minimum
+f_dyn_alpha <- dyn_alpha |>
+  as_tibble() |> 
+  mutate(across(everything(), ~if_else(. <= 0, 1e-16,.)))
+
+power_dyn_a_df <- get_pwr_or_eff_dyn_alpha(
+  col_vec = many_cohens_d, 
+  row_vec = sample_size,
+  alpha_vec = f_dyn_alpha,
+  get_power = TRUE) |> 
+tidy_output_with_n(
+  value_colname = "power",
+  name_colname = "effect_size",
+  col_vec = many_cohens_d,
+  row_vec = sample_size
+  )
+
+knitr::kable(x = head(power_dyn_a_df, n = 10))
+```
+### Plotting Power at different effect and sample sizes, while Alpha is now dynamic
+```{r}
+power_dyn_a_df  |> 
+  ggplot(aes(x = n, y = power, colour = effect_size))+
+  geom_line(alpha = 0.5, size = 1.5)+
+  geom_point(alpha = 0.5, size = 1.5)+
+  scale_x_log10(name = "Sample Size")+
+  scale_y_continuous(name = "Power")+
+  guides(colour = guide_legend(title = "Effect Size"))+
+  ggtitle("Power Using Dynamic Alpha Levels - min(alpha, beta)")+
+  theme_minimal()
+```
+
+```{r}
+cohen_dyn_a_df <- get_pwr_or_eff_dyn_alpha(
+    col_vec = many_power, 
+    row_vec = sample_size,
+    alpha_vec = f_dyn_alpha,
+    get_power = FALSE) |> 
+  tidy_output_with_n(
+    value_colname = "effect_size", 
+    name_colname = "power",                                     
+    col_vec = many_power,
+    row_vec = sample_size)
+
+
+# Cols represent different power levels, rows represent different sample sizes. 
+# Values are the critical effect size required for a statistically significant result
+knitr::kable(x = head(cohen_dyn_a_df, n = 10))
+```
+
+```{r}
+cohen_dyn_a_df |> 
+  ggplot(aes(x = n, y = effect_size, colour = power))+
+  geom_line(alpha = 0.5, size = 1.5)+
+  geom_point(alpha = 0.5, size = 1.5)+
+  scale_x_log10(name = "Sample Size")+
+  scale_y_continuous(name = "Effect Size")+
+  guides(colour = guide_legend(title = "Power"))+
+  ggtitle("Effect Size Using Dynamic Alpha Levels - min(alpha, beta)")+
+  theme_minimal()
+```
+
+### Relationship Between Alpha and Beta
+
+```{r}
+alpha_zero_to_one <- seq(0.01, 1, 0.01)
+beta_zero_to_one <- array(NA, dim = c(length(alpha_zero_to_one), l_many_cohen))
+
+
+for (d in 1:l_many_cohen){
+  for (a in 1:length(alpha_zero_to_one)){
+
+    pwr <- pwr::pwr.t.test(n = 10, d = many_cohens_d[d], sig.level = alpha_zero_to_one[a])$power
+    beta_zero_to_one[a,d] <- 1 - pwr
+  }
+}
+
+beta_alpha_diff <- tidy_output_with_n(array = beta_zero_to_one, 
+                                      col_vec = many_cohens_d, 
+                                      value_colname = "beta", 
+                                      name_colname = "effect_size", 
+                                      row_vec = alpha_zero_to_one
+                                      )
+```
+
+```{r}
+
+beta_alpha_diff |> 
+  ggplot(aes(x = n, y = beta, color = effect_size))+
+  geom_line(size = 2, alpha = .3)+
+  geom_point(size = 1, alpha = .4)+
+  scale_x_continuous(name = "Alpha")+
+  scale_y_continuous(name = "Beta")+
+  guides(colour = guide_legend(title = "Effect Size \n(Cohen's d)"))+
+  ggtitle("Relationship between Alpha and Beta")+
+  theme_minimal()
+
+```
+
+```{r}
+# Alpha and Beta - weighted equally
+beta_alpha_mean <- beta_alpha_diff |> 
+  mutate(mn = (n + beta)/2)
+
+beta_alpha_mean |> 
+  ggplot(aes(x = n, y = mn, color = effect_size))+
+  geom_line(size = 2, alpha = .3)+
+  geom_point(size = 1, alpha = .6)+
+  scale_x_continuous(name = "Alpha")+
+  scale_y_continuous(name = "(Alpha + Beta) / 2")+
+  guides(colour = guide_legend(title = "Effect Size \n(Cohen's d)"))+
+  ggtitle("Relationship between (Alpha + Beta)/2 and Alpha, for given Effect Size")+
+  theme_minimal()
+
+```
+
+```{r}
+# Alpha and Beta - Weighted differently
+weight = 4
+
+beta_alpha_weighted <- beta_alpha_mean |> 
+  mutate(wd = ((weight*n) + beta)/(weight*2))
+
+beta_alpha_weighted |> 
+  ggplot(aes(x = n, y = wd, color = effect_size))+
+  geom_line(size = 1, alpha = .6)+
+  # geom_point(size = 1, alpha = .6)+
+  scale_x_continuous(name = "Alpha", limits = c(0,0.5))+
+  scale_y_continuous(name = "(Alpha + Beta) / 2")+
+  guides(colour = guide_legend(title = "Effect Size \n(Cohen's d)"))+
+  ggtitle("Relationship between (Alpha + Beta)/2 and Alpha, for given Effect Size")+
+  theme_minimal()
+```
+# Chapter 3 - Equivalence Testing
+
+```{r}
+library(tidyverse)
+library(pwr)
+library(TOSTER)
+
+source(here::here("other-scripts", "optim_equiv_func.R")) # to get optim_equiv function
+source(here::here("my-scripts", "R", "tost_loop_functions.R"))
+```
+
+
+## TOST - Using TOSTER package
+```{r, warning = FALSE, message=FALSE}
+sample = c(25,50,100)
+m = 100 # mean of both groups set to 100
+d = c(1:100)/10 # smaller increments for smoother graph
+sd = 10
+alpha = 0.05
+margin = 0.2
+
+
+tost_pval_df <- get_pval_tost_loop(sample_vec = sample, 
+                                row_vec = d, 
+                                margin = margin, 
+                                mean = m, 
+                                sd = sd, 
+                                alpha = alpha) |> 
+  tidy_tost_loop(diff_vec = d)
+
+knitr::kable(x = head(tost_pval_df, n = 10))
+
+```
+#### PLotting Cohen's d vs p-values with various sample sizes
+```{r}
+tost_pval_df |> 
+  ggplot(aes(x = diff/sd, y = p, colour = t, linetype = n))+
+  geom_line(size = 1.2, alpha = 0.7)+
+  geom_hline(yintercept = 0.05)+
+  ggtitle("TOST and t-test, p-value at different mean differences (SD = 10) at \nThree sample sizes (25,50,100)")+
+  scale_x_continuous(name = "Cohen's d", breaks = seq(0, 10, .1))+
+  theme_minimal()
+```
+
+### Looking at Larger Sample Sizes
+
+```{r, message=FALSE}
+sample = c(25,50, 100, 500, 1000)
+m = 100 # mean of both groups set to 100
+d = c(0:50)/10 # smaller increments for smoother graph
+sd = 10
+alpha = 0.05
+margin = 0.2
+
+tost_pval_2_df <- get_pval_tost_loop(sample_vec = sample, 
+                                row_vec = d, 
+                                margin = margin, 
+                                mean = m, 
+                                sd = sd, 
+                                alpha = alpha,
+                                eqbound_type = "SMD") |>
+  tidy_tost_loop(diff_vec = d)
+
+
+knitr::kable(x = head(tost_pval_2_df, n = 10))
+```
+
+#### Plotting Cohen's d and p-values for small to large sample sizes
+```{r}
+tost_pval_2_df |> 
+  filter(t == "lower") |> 
+  ggplot(aes(x = diff/sd, y = p, colour = factor(n, levels = sample)))+
+  geom_line(size = 1.2, alpha = 0.7)+
+  geom_hline(yintercept = 0.05)+
+  ggtitle(paste(c("TOST, p-value at different mean differences (SD = 10) at \nFive sample sizes (", sample, ")"), collapse = " "))+
+  labs(caption = 
+      "Remember that the upper and lower bounds are 0.2 Cohen's d and we assume the correlation is base, 
+       this reflects a more theoretical experiment. We need both tests to return a p value less than alpha 
+       for 'significant' equivalance.")+
+  scale_y_continuous(limits = c(0,1))+
+  scale_x_continuous(name = "Cohen's d",breaks = seq(-.5, .5, .1))+
+  theme_minimal()
+```
+### Looking how different margins effect p values in TOST
+```{r}
+sample = c(25,50, 100, 500, 1000)
+mn = 100 # mean of both groups set to 100
+d = c(0:100)/10 # smaller increments for smoother graph
+sd = 10
+alpha = 0.05
+margin = seq(0.05, 0.5, 0.05)  # We only have changed margin here 
+
+p_val_loop_dat = list()
+
+
+# loop to get p values for different margins for different differences at different sample sizes
+for(m in 1:length(margin)){
+  
+  p_val_loop_dat[[m]] <- get_pval_tost_loop(sample_vec = sample, 
+                     row_vec = d, 
+                     margin = margin[m], 
+                     mean = mn , 
+                     sd = sd, 
+                     alpha = alpha, 
+                     eqbound_type = "SMD") |> 
+    tidy_tost_loop(diff_vec = d) |> 
+    mutate("margin" = as.factor(margin[m]))
+
+}
+# Combine into one df
+tost_pval_margins_df <- p_val_loop_dat |> 
+  bind_rows()
+
+knitr::kable(x = head(tost_pval_margins_df, n = 10))
+```
+
+```{r, fig.height=9, fig.width= 9}
+tost_pval_margins_df |> 
+  filter(t != "t") |> 
+  ggplot(aes(x = diff, y = p, colour = margin))+
+  # geom_point(alpha = 0.5, size = 1)+
+  geom_line(alpha = 0.7, size = 1)+
+  scale_x_continuous("Difference between Groups")+
+  scale_y_continuous("p value")+
+  facet_grid(cols = vars(t), rows = vars(factor(n, levels = sample)), scales = "free_x")+
+  theme_minimal()+
+  theme(legend.position = "top")
+```
+
+### WIP - "Optimal" Testing for equivalance
+```{r, eval=FALSE}
+
+sample = c(100, 100, 100, 100, 100)
+m = 100 # mean of both groups set to 100
+d = c(1:1000)/100 # smaller increments for smoother graph
+sd = 10
+alpha = 0.05
+
+result_3 <- array(NA, dim = c(length(d), 2*length(sample)))
+
+for(s in 1:length(sample)){
+  for(diff in 1:length(d)){
+    n1 = rnorm(sample[s], mean = m, sd = sd)
+    n2 = rnorm(sample[s], mean = m+d[diff], sd = sd)
+    
+    output <- optim_equiv(n1, n2, margin = 2.828)
+    
+    result_3[diff, 2*s-1] <- output[1] # tost
+    result_3[diff, 2*s] <- output[2] # optim
+  }
+}
+
+```
+
+```{r, eval=FALSE}
+result_tibble_3 <- result_3 |> 
+  as_tibble() |> 
+  rename(
+    "tost_10a" = V1, "optim_10a" = V2,
+    "tost_10b" = V3, "optim_10b" = V4,
+    "tost_10c" = V5, "optim_10c" = V6,
+    "tost_10d" = V7, "optim_10d" = V8,
+    "tost_10e" = V9, "optim_10e" = V10, 
+         # "tost_50" = V3, "optim_50" = V4,
+         # "tost_100" = V5, "optim_100" = V6,
+         ) |> 
+  mutate(diff = d) |> 
+  pivot_longer(cols = (-diff),
+               names_to = "test", 
+               values_to = "p") |> 
+    mutate(n = str_extract(test, pattern = "[0-9]+"),
+           t = str_extract(test, pattern = "[t_]*[a-z]+")
+         )
+
+
+```
+
+```{r, eval=FALSE}
+result_tibble_3 |> 
+  ggplot(aes(x = diff, y = p, colour = t))+
+  geom_point(size = 1.2, alpha = 0.4)+
+  geom_hline(yintercept = 0.05)+
+  theme_minimal()
+```
+
+# TO BE REMOVED
+
+## Sequential Testing - False Positives in NHST
+### 1000 t-tests, at sample size generated from normal distribtuion with same mean and size of 5 to 5000, each ran 1000 times.
+```{r, message=FALSE, eval = F, include= F}
+source(file = here::here("my-scripts/R", "t_test_loop_functions.R"))
+
+## See my-scripts/generate_t_test_pvals to see how these dataframes were populated
+p_vals_tost_break <- read_csv(file = here::here("./sim_data/p_vals_tost_break.csv"))
+p_vals_tost_break_small_alpha <- read_csv(file = here::here("./sim_data/p_vals_tost_break_small_alpha.csv"))
+```
+
+```{r, eval = F, include= F}
+repeats = 1000
+n = seq(5, 5000, length.out = 1000)
+
+p_vals_tost_break_df <- p_vals_tost_break |> 
+   summarise_t_test_loop(n = n, repeats = repeats)
+
+p_vals_tost_break_small_alpha_df <- p_vals_tost_break_small_alpha |> 
+  summarise_t_test_loop(n = n, repeats = repeats)
+
+
+
+knitr::kable(x = head(p_vals_tost_break_df, n = 10))
+knitr::kable(x = head(p_vals_tost_break_small_alpha_df, n = 10))
+```
+### False positives even when alpha is 10 times smaller
+```{r,fig.height= 8, fig.width= 12, eval = F, include= F}
+p_vals_tost_break_df |> 
+  ggplot()+
+  geom_line(aes(x = n, y =  prop), size = 1, colour = "lightgrey")+
+  # geom_line(aes(x = n, y =  prop ), data = p_vals_tost_break_small_alpha_df, size = 1, colour = "skyblue")+
+  geom_line(aes(x = n, y = 1 - prop), size = 1, colour = "black")+
+  # geom_line(aes(x = n, y = 1 - prop), data = p_vals_tost_break_small_alpha_df, size = 1, colour = "deepskyblue4")+
+  scale_x_log10("N")+
+  scale_y_continuous("Proportation of Decisions")+
+  theme_minimal()
+```
+
+
+```{r, fig.height= 8, fig.width= 13, eval = F, include= F}
+seq_t_test_many_alphas <- read_csv(file = here::here("sim_data","seq_t_test_many_alphas.csv"), col_types = "ifi?")
+
+knitr::kable(x = head(seq_t_test_many_alphas, n = 10))
+```
+
+
+```{r, fig.height= 8, fig.width= 13, eval = F, include= F}
+seq_t_test_many_alphas |> 
+  ggplot(aes(x = n, y = pval, colour = alpha))+
+  geom_line(aes(x = n, y = 1 - prop), size = 1.2, alpha = 0.7)+
+  scale_x_log10("N")+
+  scale_y_continuous("Proportation of Null Hypothesis Rejections")+
+  ggtitle("Sequential t-test of Same Population Results in False Positives")+
+  theme_minimal()
+```
+
+```{r,fig.height= 8, fig.width= 13, eval = F, include= F}
+seq_t_test_many_alphas_mean <- read_csv(file = here::here("sim_data","seq_t_test_many_alphas_mean.csv"), show_col_types = F)
+
+knitr::kable(x = head(seq_t_test_many_alphas_mean, n = 10))
+```
+
+
+```{r,fig.height= 8, fig.width= 13, eval = F, include= F}
+seq_t_test_many_alphas_mean |>
+  filter(alpha == 0.05) |> 
+  ggplot(aes(x = n, y = mean_diff))+
+  geom_point(size = 2, alpha = .2, colour = "blue")+
+  geom_ribbon(aes(ymin = mean_diff_mean - mean_diff_sd, ymax = mean_diff_mean + mean_diff_sd), alpha = .4, fill = "lightblue")+
+  geom_line(aes(x = n, y = mean_diff_mean), size = 2, colour = "darkblue", alpha = .6)+
+  theme_minimal()+
+  scale_x_log10("Sample Size")+
+  scale_y_continuous("Absolute Mean Difference")+
+  ggtitle("Mean Difference of Significant results at different sample sizes (p < 0.05)")+
+  coord_cartesian(expand = T)
+```
+
+```{r, fig.height= 8, fig.width= 13, eval = F, include= F}
+seq_t_test_many_alphas_mean |> 
+  ggplot(aes(x = n, y = mean_diff, colour = as.factor(alpha)))+
+  geom_point(size = 2, alpha = .2)+
+  geom_line(aes(y = mean_diff_mean), size = 2, alpha = .2)+
+  theme_minimal()+
+  scale_x_log10("Sample Size")+
+  scale_y_continuous("Absolute Mean Difference")+
+  ggtitle("Mean Difference of Significant results at different sample sizes (for different alphas)")
+```
+

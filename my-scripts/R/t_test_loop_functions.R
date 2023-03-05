@@ -83,6 +83,12 @@ simulate_t_tests <- function(sample_size,
   s1 = c()
   s2 = c()
   
+  if(use_rope){
+    conf_level <- 0.9 ## Using 90% CI to compare to Margin
+  }else{
+    conf_level <- 1 - alpha
+  }
+  
   for (i in 1:len_n){
     ## Sample for group 1 and 2
     ## Increment of 5s
@@ -97,8 +103,8 @@ simulate_t_tests <- function(sample_size,
       s1, 
       s2, 
       alternative = "two.sided", 
-      conf.level = 1 - alpha, 
-      var.equal = TRUE)
+      conf.level = conf_level,
+      var.equal = FALSE)
   
     if (t_test[[p]] < alpha & break_loop){
       mean_diff <- abs(t_test[[mean]][[1]] - t_test[[mean]][[2]])
@@ -124,6 +130,11 @@ simulate_t_tests <- function(sample_size,
         conf_vector[i, 2] <- t_test[[ci]][[2]]
         break
         }
+    }else{
+      mean_diff[i] <- NULL  
+      # this is to know how many individual tests have occurred 
+      # sum(is.null(mean_diff)) = number of tests that passed
+      # add to number of non-NA and non-NULL values (ie the tests that failed), to get total
     }
     if (!break_loop){
       p_vector[i] <- t_test[[p]]

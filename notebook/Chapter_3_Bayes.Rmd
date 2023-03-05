@@ -1,0 +1,630 @@
+---
+title: "Brms-priors"
+author: "Mark G"
+date: "2022-11-16"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(brms)
+library(tidyverse)
+library(tidybayes)
+library(doParallel)
+library(foreach)
+library(ggdist)
+
+## setting relative directory 
+here::i_am("./notebook/Chapter_3_Bayes.Rmd")
+
+source(here::here("my-scripts", "R", "project_themes.R"))
+
+base_size = 13
+```
+
+## Please Note:
+Whilst some of these outputs are in the final report, this notebook itself has not been organised or properly documented. The original goal of this document was to explore the `Brms` and `ggdist` package in case I wanted to include Bayesian Parameter Estimation 
+
+It is very likely, in the current state, this notebook will inadequately present graphs or explain the reasoning or purpose behind them.
+
+
+```{r}
+cores <- parallel::detectCores() - 2 
+
+# RcppParallel::setThreadOptions(numThreads = cores)
+doParallel::registerDoParallel(cores = cores)
+```
+
+```{r}
+sample_size = c(25, 50, 100, 250, 1000)
+
+n_chains <- 4
+n_iter <- 10000
+n_warmup <- 2000
+
+
+```
+
+```{r}
+get_posterior <- function(sample_size, prior, mean_diff = 0, n_chains = 4, n_iter = 4000, n_warmup = 1000, cores = 1){ 
+
+models <- foreach::foreach(n = sample_size) %dopar% {
+
+# creating data using normal distribution
+
+set.seed(1)
+ dat <- dplyr::tibble(
+    x = c(rnorm(n), rnorm(n, mean_diff)), 
+    y = rep(c("A", "B"), each = n))
+
+# Bayesian Analysis, using defined prior and sample sizes
+ brms::brm(
+    brms::bf(x ~ 0 + y), 
+    data = dat, 
+    family = "student", 
+    prior = prior, 
+    chains = n_chains,
+    iter = n_iter, 
+    warmup = n_warmup, 
+    threads = cores, 
+    cores = n_chains
+    )
+}
+
+# Using tidybayes to extract the posterior distribution of the mean values
+output <- vector("list", length = length(models))
+
+for(i in 1:length(models)){
+  output[[i]] <- models[[i]] |>
+      tidybayes::spread_draws(b_yA, b_yB) |> 
+      dplyr::mutate(diff = b_yB - b_yA)
+}
+
+output <- output |> 
+  dplyr::bind_rows() |> 
+  dplyr::mutate(n = rep(sample_size, each = n_chains * (n_iter - n_warmup)))
+
+return(output)
+
+}
+```
+
+```{r}
+plot_posterior <- function(df, hdi.df, null = T){
+  if(null){
+    subtitle <- "Real Mean Difference of 0"
+    true_value <-  0
+    x_limits <- c(-.7, .7)
+  }else{
+    subtitle <- "Real Mean Difference of 1"
+    true_value <-  1
+    x_limits <- c(NA, 1.5)
+  }
+  
+  text_df <- tibble(
+  prior = "p1", 
+  n = unique(df$n)
+  )
+  
+  
+  df |> 
+  ggplot(aes(diff))+
+  geom_density(aes(fill = prior), alpha = .6, show.legend = T, trim = T, colour = NA)+
+  scale_x_continuous("Mean Difference", breaks = waiver(), limits = x_limits)+
+  scale_y_continuous("", breaks = NULL, limits = c(0, NA))+
+  facet_wrap(n ~ prior, scales = "fixed", ncol = 3, labeller = as_labeller(
+    c(
+      'p1' = "",
+      'p2' = "",
+      'p3' = "", 
+      `25` = "",
+      `50` = "",
+      `100` = "",
+      `250` = "",
+      `1000` = "" 
+      ))
+    )+
+  geom_segment(data = hdi.df, aes(x = .lower, xend = .upper, y = 0, yend = 0, colour = prior), 
+               linewidth = 2, show.legend = F)+
+  geom_text(data = hdi.df, aes(x = .lower, y = 1, label = round(.lower, 3)), hjust = .7)+
+  geom_text(data = hdi.df, aes(x = .upper, y = 1, label = round(.upper, 3)), hjust = .3)+
+  geom_vline(xintercept = true_value, linewidth = .5)+
+  scale_fill_manual(expression(bold("Prior")), 
+                    values = c("#2f357c", "#bf3729", "#235070"),
+                    labels = c(expression(italic("X ~ Normal (0, 0.5) ")), 
+                               expression(italic("X ~ Uniform (-5, +5)")), 
+                               expression(italic("X ~ Normal (1, 0.5) "))), 
+                     guide = guide_legend(override.aes = list(size = 8, alpha = .8)))+  
+  scale_colour_manual("Prior", 
+                    values = c("#2f357c", "#bf3729", "#235070"))+
+  guides(colour = "none")+
+  labs(title = "Parameter Estimation Across Different Sample Sizes", 
+       subtitle = subtitle)+
+  geom_text(data = text_df, aes(x = -Inf, y = 1, label = paste("N =", n)), hjust = 0, vjust = -3.5, fontface = "bold")+
+  theme_project_light(base_size = base_size)+
+  theme(strip.text = element_text(face = "bold"))
+}
+```
+
+
+### Defining Different Three Priors
+
+```{r}
+p1 <- set_prior("normal(0, .5)")
+p2 <- set_prior("uniform(-5, 5)")
+p3 <- set_prior("normal(1, .5)")
+```
+### Simulating Bayesian Parameter Estimation when NULL is TRUE
+
+```{r, eval=F}
+pr_list <- list(p1, p2, p3)
+models <- vector("list", length(pr_list))
+
+for(i in 1:length(pr_list)){
+  
+  models[[i]] <- get_posterior(
+     sample_size = sample_size, 
+     prior = pr_list[[i]], 
+     mean_diff = 0, 
+     n_chains = 4, 
+     n_iter = n_iter, 
+     n_warmup = n_warmup, 
+     cores = cores
+    )
+  
+}
+
+
+```
+
+```{r, eval = F}
+models_df <- models |>
+  bind_rows() |>
+  mutate(prior = rep(c("p1", "p2", "p3"), each = n_chains * (n_iter - n_warmup) * length(sample_size))) 
+
+# write_csv(models_df, file = here::here("sim_data", "ch3_bayes", "bayes_models_null.csv"))
+```
+
+
+```{r}
+models_df <- read_csv(file = here::here("sim_data", "ch3_bayes", "bayes_models_null.csv"))
+
+hdi_df <- models_df |> 
+  dplyr::group_by(n, prior) |> 
+  tidybayes::mean_hdci(diff) |> 
+  dplyr::ungroup()
+```
+
+
+```{r, fig.width= 10, fig.height=10}
+models_df |> 
+  plot_posterior(hdi.df = hdi_df, null = T)
+
+# ggsave(filename = here::here("images","ch3", "posterior-null.png"), dpi = 360, width = 10, height = 8)
+```
+### Simulating Bayesian Parameter Estimation when NULL is FALSE
+```{r, eval = F}
+models1 <- vector("list", length(pr_list))
+
+for(i in 1:length(pr_list)){
+  
+  models1[[i]] <- get_posterior(
+     sample_size = sample_size, 
+     prior = pr_list[[i]], 
+     mean_diff = 1, 
+     n_chains = 4, 
+     n_iter = n_iter, 
+     n_warmup = n_warmup, 
+     cores = cores
+    )
+  
+}
+```
+
+
+```{r, eval = F}
+models_df1 <- models1 |>
+  bind_rows() |>
+  mutate(prior = rep(
+    c("p1", "p2", "p3"), each = n_chains * (n_iter - n_warmup) * length(sample_size))
+    )
+
+# write_csv(models_df1, file = here::here("sim_data", "ch3_bayes", "bayes_models_alter.csv"))
+```
+
+```{r}
+models_df1 <- read_csv(file = here::here("sim_data", "ch3_bayes", "bayes_models_alter.csv"))
+
+hdi_df1 <- models_df1 |> 
+  group_by(prior, n) |> 
+  tidybayes::mean_hdci(diff) |> 
+  ungroup()
+```
+
+```{r, fig.height=8, fig.width=10}
+models_df1 |> 
+  plot_posterior(hdi.df = hdi_df1, null = F)
+
+# ggsave(filename = here::here("images", "ch3", posterior-alter.png"), dpi = 360, width = 10, height = 8)
+```
+
+
+```{r, eval=F}
+n = 10000
+mean_diff = 0
+
+p1 <- set_prior("normal(0, 0.1)")
+p2 <- set_prior("uniform(-5,5)")
+
+# creating data using normal distribution
+bf_dat <- dplyr::tibble(
+    x = c(rnorm(n), rnorm(n, mean_diff)), 
+    y = rep(c("A", "B"), each = n))
+
+# Bayesian Analysis, using defined prior and sample sizes
+bf_model1 <- brms::brm(
+    x ~ y, 
+    data = bf_dat, 
+    family = "gaussian", 
+    prior = p1, 
+    chains = n_chains,
+    iter = n_iter, 
+    warmup = n_warmup, 
+    threads = cores, 
+    save_pars = save_pars(all=TRUE)
+    )
+
+bf_model2 <- brms::brm(
+    x ~ y, 
+    data = bf_dat, 
+    family = "gaussian", 
+    prior = p2, 
+    chains = n_chains,
+    iter = n_iter, 
+    warmup = n_warmup, 
+    threads = cores, 
+    save_pars = save_pars(all=TRUE)
+    )
+
+
+bf_model3 <- brms::brm(
+    x ~ y, 
+    data = bf_dat, 
+    family = "gaussian", 
+    prior = p3, 
+    chains = n_chains,
+    iter = n_iter, 
+    warmup = n_warmup, 
+    threads = cores, 
+    save_pars = save_pars(all=TRUE)
+    )
+
+bf_12 <- bayes_factor(bf_model1, bf_model2)
+bf_23 <- bayes_factor(bf_model2, bf_model3)
+bf_13 <- bayes_factor(bf_model1, bf_model3)
+
+bf_list <- c(bf_12[1], bf_23[1], bf_13[1])
+names(bf_list) <- c("12", "23", "13")
+
+# is.brmsfit(bf_model1)
+# is.brmsfit(bf_model2)
+# is.brmsfit(bf_model3)
+
+```
+
+```{r, eval = F}
+p1 <- set_prior("normal(0, 0.1)")
+p2 <- set_prior("uniform(-10,10)", lb = -10, ub = 10)
+p3 <- set_prior("normal(1, 0.1)")
+
+pr_list <- list(p1, p2, p3)
+
+quiet <- function(x) { 
+  sink(tempfile()) 
+  on.exit(sink()) 
+  invisible(force(x)) 
+} 
+
+bayes_models <- vector("list", length = length(pr_list))
+
+for(i in 1:length(pr_list)){
+  bayes_models[[i]] <- quiet(sim_df_1 |> 
+  filter(!eval(time_cond)) |> 
+  pivot_for_mn(replication = F) |> 
+  group_nest(n_trial, .key = "values") |> 
+  mutate(model = map(.x = values, 
+    .f = ~ brms::brm(
+  bf(mn ~ cond, sigma ~ cond),  
+  data = .x,
+  family = student, 
+  prior = pr_list 
+  chains = n_chains,
+  iter = n_iter, 
+  warmup = n_warmup, 
+  threads = cores, 
+  save_pars = save_pars(all=TRUE)
+      ))
+  )
+  )
+}
+
+
+
+bayes_models_df <- bayes_models |> 
+  bind_rows(.id = "id") |> 
+  mutate(
+   "spread" = map(model, ~ tidybayes::spread_draws(.x, b_Intercept, b_condcond2, b_condcond3))) |> 
+  unnest(spread)
+
+# write_csv(bayes_models_df, file = here::here("sim_data", "ch3_bayes", "bayes_model_egg.csv"), num_threads = cores)
+
+```
+
+```{r, eval = F}
+sim_df_1 |> 
+    filter(!eval(time_cond)) |> 
+    pivot_for_mn(replication = F) |> 
+  group_by(n_trial, cond) |> 
+  summarise(mn = mean(mn), .groups = "drop") |> 
+  ggplot(aes(x = n_trial, group = cond))+
+  geom_jitter(aes(y = mn, colour = cond), alpha = .5) +
+  geom_line(aes(y = mn, colour = cond), alpha = .5) +
+  theme_project_light(base_size = 12)
+```
+
+```{r, fig.width= 8, fig.height=10, eval = F}
+
+bayes_models_df |> 
+  ggplot()+
+  geom_density(aes(b_Intercept), fill = "lightblue", alpha = .5, colour = NA)+
+  geom_density(aes(b_condcond2), fill = "cyan", alpha = .5, colour = NA)+
+  geom_density(aes(b_condcond3), fill = "darkblue", alpha = .5, colour = NA)+
+  scale_x_continuous(limits = c(0, 1.2))+
+  theme_project_light(base_size = 12)+
+  facet_grid(n_trial~id, scales = "free")
+
+
+```
+### Testing Kruschke's Recommendation
+```{r, eval = F}
+## Using bf() for brmsformula so mean and sd are estimated, allowing sd to be unequal. 
+## A student distribution was used to reduce influence of extreme values
+## And no prior was specified - to see that the different would be
+
+bayes_models2 <- sim_df_1 |> 
+  filter(!eval(time_cond)) |> 
+  pivot_for_mn(replication = F) |> 
+  group_nest(n_trial, .key = "values") |> 
+  mutate(model = map(.x = values, 
+    .f = ~ brms::brm(
+  bf(mn ~ 0 + cond, sigma ~ cond),  
+  data = .x,
+  family = student, 
+  chains = n_chains,
+  iter = n_iter, 
+  warmup = n_warmup, 
+  threads = cores, 
+  save_pars = save_pars(all=TRUE), 
+  cores = n_chains
+      )
+  )
+  )
+```
+```{r}
+# test <- sim_df_1 |> 
+#   filter(!eval(time_cond)) |> 
+#   pivot_for_mn(replication = F) |> 
+#   group_nest(n_trial, .key = "key")
+# 
+# test$key
+```
+
+
+```{r, eval = F, fig.height= 8, fig.width=8}
+plot(bayes_models2$model[[1]], ask = F)
+```
+
+
+```{r, eval = F, fig.height= 8, fig.width=8}
+plot(bayes_models2$model[[5]], ask = F)
+```
+
+
+```{r, eval = F}
+# bayes_models2 <- readRDS(here::here("sim_data", "ch3_bayes", "test.rds"))
+```
+
+```{r, eval = F}
+bayes_models_df2 <- bayes_models2 |> 
+  mutate(
+   "spread" = map(model, ~ tidybayes::spread_draws(.x, b_condcond1, b_condcond2, b_condcond3))) |> 
+  unnest(spread)
+
+brms::prior_summary(bayes_models2$model[[1]])
+
+# write_csv(bayes_models_df2, here::here("sim_data", "ch3_bayes", "bayes_model_egg2.csv"))
+```
+
+
+```{r}
+bayes_models_df2 <- read_csv(here::here("sim_data", "ch3_bayes", "bayes_model_egg2.csv"))
+
+hdi_model_2 <- bayes_models_df2 |> 
+  group_by(n_trial) |> 
+  mutate(
+    diff13 = b_condcond3 - b_condcond1,
+    diff12 = b_condcond2 - b_condcond1,
+    ) |> 
+  tidybayes::mean_hdci(diff13, diff12) |> 
+  ungroup()
+
+```
+
+```{r, fig.height = 7, fig.width= 10}
+bayes_models_df2 |> 
+  ggplot(aes(x = b_condcond3 - b_condcond1, y = 0, group = n_trial))+
+  stat_halfeye(p_limits = c(0.05, 0.95), 
+               linewidth = 5, 
+               slab_fill = "#56B1F7", 
+               interval_colour = "#132B43", 
+               point_colour = "#132B43", 
+               slab_alpha =.7)+
+  theme_project_light(base_size = 12)+
+  facet_wrap(.~n_trial)+
+  scale_x_continuous("Mean Difference")+
+  scale_y_continuous("")+
+  geom_text(data = hdi_model_2, aes(x = diff13.lower, y = .03, label = round(diff13.lower, 3)), hjust = .7, size = 5)+
+  geom_text(data = hdi_model_2, aes(x = diff13.upper, y = .03, label = round(diff13.upper, 3)), hjust = .3, size = 5)+
+  labs(title = "Parameter Estimation of Mean Difference of Condition 1 and 3")
+```
+
+```{r, fig.height = 7, fig.width= 10}
+bayes_models_df2 |> 
+  ggplot(aes(x = b_condcond2 - b_condcond1, y = 0, group = n_trial))+
+  stat_halfeye(p_limits = c(0.05, 0.95), 
+               linewidth = 5, 
+               slab_fill = "#56B1F7", 
+               interval_colour = "#132B43", 
+               point_colour = "#132B43", 
+               slab_alpha =.7)+
+  theme_project_light(base_size = 12)+
+  facet_wrap(.~n_trial)+
+  scale_x_continuous("Mean Difference")+
+  scale_y_continuous("")+
+  geom_text(data = hdi_model_2, aes(x = diff12.lower, y = .03, label = round(diff12.lower, 3)), hjust = .7, size = 5)+
+  geom_text(data = hdi_model_2, aes(x = diff12.upper, y = .03, label = round(diff12.upper, 3)), hjust = .3, size = 5)+
+  labs(title = "Parameter Estimation of Mean Difference of Condition 1 and 2")
+```
+
+
+### Focusing on One Sample to get a better understanding on how to manage the output
+
+```{r, eval = F, message=F}
+aov_model <- aov(formula = mn ~ cond, 
+            data = sim_df_1 |> 
+  filter(!eval(time_cond)) |> 
+  pivot_for_mn(replication = F) |> filter(n_trial == 50))
+
+TukeyHSD(aov_model)
+
+bf_eeg_model <- brms::brm(
+  mn ~ cond,
+  data = sim_df_1 |> 
+    filter(!eval(time_cond)) |> 
+    pivot_for_mn(replication = F) |> 
+    filter(n_trial == 200),
+  family = "gaussian",
+  prior = p3,
+  chains = n_chains,
+  iter = n_iter,
+  warmup = n_warmup,
+  threads = cores,
+  save_pars = save_pars(all=TRUE)
+      )
+
+bf_eeg_model2 <- brms::brm(
+  mn ~ cond,
+  data = sim_df_1 |> 
+    filter(!eval(time_cond)) |> 
+    pivot_for_mn(replication = F) |> 
+    filter(n_trial == 200, cond %in% c("cond1", "cond3")),
+  family = "gaussian",
+  prior = p3,
+  chains = n_chains,
+  iter = n_iter,
+  warmup = n_warmup,
+  threads = cores,
+  save_pars = save_pars(all=TRUE)
+      )
+
+bf_eeg_df <- as_draws_df(bf_eeg_model) |> 
+  select(b_Intercept, b_condcond2, b_condcond3) |> 
+  mutate(
+    diff_13 = b_condcond3 - b_Intercept,
+    diff_12 = b_condcond2 - b_Intercept,
+    )
+
+
+bf_eeg_df2 <- as_draws_df(bf_eeg_model2) |> 
+  select(b_Intercept, b_condcond3) |> 
+  mutate(
+    diff_13 = b_condcond3 - b_Intercept
+    )
+
+bf_eeg_df |> 
+  ggplot()+
+  geom_density(aes(b_Intercept), fill = "lightblue", alpha = .5, colour = NA)+
+  geom_density(aes(b_condcond2), fill = "cyan", alpha = .5, colour = NA)+
+  geom_density(aes(b_condcond3), fill = "darkblue", alpha = .5, colour = NA)+
+  scale_x_continuous(limits = c(0, 1.2))+
+  theme_project_light(base_size = 12)
+
+bf_eeg_df2 |> 
+  ggplot()+
+  geom_density(aes(b_Intercept), fill = "lightblue", alpha = .5, colour = NA)+
+  geom_density(aes(b_condcond3), fill = "darkblue", alpha = .5, colour = NA)+
+  scale_x_continuous(limits = c(0, 1.2))+
+  theme_project_light(base_size = 12)
+
+mode_hdi(as_draws_df(bf_eeg_model), .width = .95)
+mode_hdi(as_draws_df(bf_eeg_model2), .width = .95)
+
+# 
+# bf_eeg_model
+# 
+# get_variables(bf_eeg_model)
+```
+
+```{r, eval = F}
+bf_eeg_model |> 
+  tidybayes::spread_draws(b_condcond3) |> 
+  ggplot(aes(b_condcond3))+
+  geom_density(size = .1, alpha = .3)+
+  scale_x_continuous("Mean Difference")+
+  theme_project_light(base_size = 12)
+```
+
+```{r}
+plot_posterior_eeg <- function(df, diff_13 = T){
+  
+  if(diff_13){
+    mean_aes <- expression(aes(b_condcond3 - b_Intercept))
+    title = "Cond 3 vs Cond 1"
+  }else{
+    mean_aes <- expression(aes(b_condcond2 - b_Intercept))
+    title = "Cond 2 vs Cond 1"
+  }
+  
+  df |> mutate(
+   "spread" = map(test, ~ tidybayes::spread_draws(.x, b_Intercept, b_condcond2, b_condcond3))) |> 
+  unnest(spread) |>   
+  ggplot(eval(mean_aes))+
+  geom_density(aes(fill = n_trial, group = n_trial), size = .1, alpha = .3, colour = NA)+
+  scale_x_continuous("Mean Difference")+
+  theme_project_light(base_size = 12)+
+  ggtitle(title)
+}
+```
+
+
+```{r, eval = F}
+bf_eeg_model |> plot_posterior_eeg()
+df_1 |> plot_posterior_eeg(diff_13 = F)
+```
+ 
+ 
+```{r, eval = F}
+ df_2 |> plot_posterior_eeg()
+ df_2 |> plot_posterior_eeg(diff_13 = F)
+```
+
+```{r, eval = F}
+ df_3 |> plot_posterior_eeg()
+ df_3 |> plot_posterior_eeg(diff_13 = F)
+```
+
+
+
