@@ -74,6 +74,8 @@ simulate_t_tests <- function(sample_size,
   mean_diff_vector <- array(NA, dim = len_n)
   p_vector <- array(NA, dim = len_n)
   conf_vector <- array(NA, dim = c(len_n, 2))
+  
+  place <- array(NA, dim = len_n) ## to record the number of tests
  
   p <- "p.value"
   mean <- "estimate"
@@ -131,9 +133,9 @@ simulate_t_tests <- function(sample_size,
         break
         }
     }else{
-      mean_diff[i] <- NULL  
+      place[i] <- i  
       # this is to know how many individual tests have occurred 
-      # sum(is.null(mean_diff)) = number of tests that passed
+      # sum(!is.na(place)) = number of tests that passed
       # add to number of non-NA and non-NULL values (ie the tests that failed), to get total
     }
     if (!break_loop){
@@ -141,11 +143,12 @@ simulate_t_tests <- function(sample_size,
       mean_diff_vector[i] <- abs(t_test[[mean]][[1]] - t_test[[mean]][[2]])
       conf_vector[i, 1] <- t_test[[ci]][[1]]
       conf_vector[i, 2] <- t_test[[ci]][[2]]
+      place <- i
     }
   }
   
  output <- mean_diff_vector |>
-    bind_cols(p_vector, conf_vector, .name_repair = ~ c("mean_diff","p", "l_ci", "u_ci")) 
+    bind_cols(p_vector, conf_vector, place, .name_repair = ~ c("mean_diff","p", "l_ci", "u_ci", "place")) 
  
   return(output)
 }

@@ -28,7 +28,7 @@ dat <- foreach::foreach(i = 1:l_a, .combine = "rbind")%dopar%{
                                  break_loop = TRUE, 
                                  alpha = alphas[i])) |> 
     t() |> 
-    tidyr::as_tibble(.name_repair = ~c("mean_diff", "p", "l_ci", "u_ci")) |> 
+    tidyr::as_tibble(.name_repair = ~c("mean_diff", "p", "l_ci", "u_ci", "place")) |> 
     purrr::map_dfr(~unlist(.x)) |> 
     dplyr::mutate(alpha = alphas[i])
   
@@ -51,7 +51,7 @@ dat1 <- foreach::foreach(i = 1:l_a, .combine = "rbind")%dopar%{
                                     break_loop = FALSE, 
                                     alpha = alphas[i])) |> 
     t() |> 
-    tidyr::as_tibble(.name_repair = ~c("mean_diff", "p", "l_ci", "u_ci")) |> 
+    tidyr::as_tibble(.name_repair = ~c("mean_diff", "p", "l_ci", "u_ci", "place")) |> 
     purrr::map_dfr(~unlist(.x)) |> 
     dplyr::mutate(alpha = alphas[i])
   
@@ -77,7 +77,7 @@ dat2 <- foreach::foreach(i = 1:l_a, .combine = "rbind")%dopar%{
                                     alpha = alphas[i], 
                                     mean_diff = 0.5)) |> 
     t() |> 
-    tidyr::as_tibble(.name_repair = ~c("mean_diff", "p", "l_ci", "u_ci")) |> 
+    tidyr::as_tibble(.name_repair = ~c("mean_diff", "p", "l_ci", "u_ci", "place")) |> 
     purrr::map_dfr(~unlist(.x)) |> 
     dplyr::mutate(alpha = alphas[i])
   
@@ -132,7 +132,7 @@ dat4 <- foreach::foreach(m = 1:length(margins), .combine = "rbind")%dopar%{
                                       use_rope = T, 
                                       margin = margins[m])) |>  
     t() |> 
-    tidyr::as_tibble(.name_repair = ~c("mean_diff", "p", "l_ci", "u_ci")) |> 
+    tidyr::as_tibble(.name_repair = ~c("mean_diff", "p", "l_ci", "u_ci", "place")) |> 
     purrr::map_dfr(~unlist(.x)) |> 
     dplyr::mutate(margins = margins[m])
   
@@ -164,7 +164,7 @@ dat5 <- foreach::foreach(m = 1:length(margins), .combine = "rbind")%dopar%{
                                     use_rope = T, 
                                     margin = margins[m])) |>  
     t() |> 
-    tidyr::as_tibble(.name_repair = ~c("mean_diff", "p", "l_ci", "u_ci")) |> 
+    tidyr::as_tibble(.name_repair = ~c("mean_diff", "p", "l_ci", "u_ci", "place")) |> 
     purrr::map_dfr(~unlist(.x)) |> 
     dplyr::mutate(margins = margins[m])
   
@@ -195,7 +195,7 @@ dat6 <- foreach::foreach(m = 1:length(margins2), .combine = "rbind")%dopar%{
                                     use_rope = T, 
                                     margin = margins2[m])) |>  
     t() |> 
-    tidyr::as_tibble(.name_repair = ~c("mean_diff", "p", "l_ci", "u_ci")) |> 
+    tidyr::as_tibble(.name_repair = ~c("mean_diff", "p", "l_ci", "u_ci", "place")) |> 
     purrr::map_dfr(~unlist(.x)) |> 
     dplyr::mutate(margins = margins2[m])
   
