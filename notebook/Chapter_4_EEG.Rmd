@@ -329,7 +329,8 @@ dyn_stats <- rep_df_1 |>
   mutate(
     sig_rule1 = if_else(p < new_alpha, 0, NA),
     sig_rule2 = if_else(p < new_alpha_2, 0, NA)
-  )
+  ) |> 
+  filter(experiment == "B") ## to apply only plot on the replication
 
 # dyn_stats
 
@@ -523,12 +524,12 @@ It is probably worth replicating this pipeline (the above process) several times
 seeds = 1:1000 # the seeds that were used in the 1000 repetitions of the Pipeline
 
 ## Reading the Pipeline Simulations - 1000 repetitions
-sim_rope_1 <- read_csv(here::here("sim_data","ch4_eeg_sims", "sim_egg_pipeline_eff.csv"))
+eval_rope_1 <- read_csv(here::here("sim_data/ch4_eeg_sims/large_sim_rope_eval_df.csv"))
 sim_rope_2 <- read_csv(here::here("sim_data","ch4_eeg_sims", "sim_egg_pipeline_no_eff.csv"))
 
 ## Evaluating the ROPEs of Number of False Positives
-eval_rope_1 <- sim_rope_1 |> 
-  eval_rope(alpha = 0.05, effect_time_vector = effect_time)
+# eval_rope_1 <- sim_rope_1 |> 
+#   eval_rope(alpha = 0.05, effect_time_vector = effect_time)
 
 eval_rope_2 <- sim_rope_2 |> 
   eval_rope(alpha = 0.05, effect_time_vector = effect_time)
@@ -544,6 +545,7 @@ source(here::here("my-scripts", "R", "eeg_rope_graphs.R"))
 
 ```{r, warning=F,eval = F}
 .eval_rope_g1 <- eval_rope_1 |> 
+  filter(!rope %in% c("controlt", "nonsig")) |> 
   fp_graphs(effect = T)
 ```
 
@@ -554,8 +556,8 @@ plots <- list()
 
 for(i in 1:length(.eval_rope_g1)){
   
-  filename <- paste("ch4_fp_rope_eff_", i ,".png",sep="")
-  ggsave(plot = .eval_rope_g1[[i]], file = here::here("images", filename), width = 10, height = 8, dpi = 360)
+  filename <- paste("ch5_fp_rope_eff_", i ,".png",sep="")
+  ggsave(plot = .eval_rope_g1[[i]], file = here::here("images/ch5", filename), width = 10, height = 8, dpi = 360)
 }
 ```
 
@@ -572,7 +574,7 @@ plots <- list()
 
 for(i in 1:length(.eval_rope_g2)){
   
-  filename <- paste("ch4_fp_rope_no_eff_", i ,".png",sep="")
+  filename <- paste("ch5_fp_rope_no_eff_", i ,".png",sep="")
   ggsave(plot = .eval_rope_g2[[i]], file = here::here("images", filename), width = 10, height = 8, dpi = 360)
 }
 ```
@@ -586,7 +588,8 @@ Whilst minimising False positives is desirable, we can achieve a false positive 
 
 ```{r, eval = F}
 .eval_rope_g3 <- eval_rope_1 |> 
-  tp_graphs()
+    filter(!rope %in% c("controlt", "nonsig")) |> 
+    tp_graphs()
 ```
 
 ```{r,  eval = F, include=F}
@@ -596,8 +599,8 @@ plots <- list()
 
 for(i in 1:length(.eval_rope_g3)){
   
-  filename <- paste("ch4_tp_rope_eff_", i ,".png",sep="")
-  ggsave(plot = .eval_rope_g3[[i]], file = here::here("images", filename), width = 10, height = 8, dpi = 360)
+  filename <- paste("ch5_tp_rope_eff_", i ,".png",sep="")
+  ggsave(plot = .eval_rope_g3[[i]], file = here::here("images/ch5", filename), width = 10, height = 8, dpi = 360)
 }
 ```
 

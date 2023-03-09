@@ -34,10 +34,26 @@ dat <- foreach::foreach(i = 1:l_a, .combine = "rbind")%dopar%{
   
 }
 
+seq_alphas_raw <- dat |>
+  mutate(n = as.factor(rep(n*2, times = repeats * l_a))) 
+
 seq_alphas <- dat |>
   summarise_t_test_loop(n = n, repeats = repeats, seq.test = T)
 
+seq_alphas_raw |> 
+  group_by(alpha) |> 
+  summarise(
+    no_tests = sum(is.na(place)),                      ## Number of tests that did not pass/ were not ran because of previous positive
+    passed_tests = sum(!is.na(place)),                 ## number of tests that passed - ie did not return positive
+    percent_passed = 100 * passed_tests / (l_n * repeats),
+    no_fp = sum(!is.na(p)),                            ## number of false positives
+    percent_fp = 100* no_fp / (l_n * repeats)) |> 
+  ungroup() |> 
+  mutate(
+    total_tests = sum(passed_tests + no_fp)            ## Total number of tests
+    )  
 
+write_csv(x = seq_alphas_raw, file = here::here("sim_data/ch2_t_tests", "seq_alphas_raw.csv.gz"), num_threads = cores)
 write_csv(x = seq_alphas, file = here::here("sim_data/ch2_t_tests", "seq_alphas.csv"), num_threads = cores)
 
 #### Simulating t-tests with no ROPE - multiple alphas ####
@@ -138,12 +154,27 @@ dat4 <- foreach::foreach(m = 1:length(margins), .combine = "rbind")%dopar%{
   
 }
   
+n_tibble <- tibble(n = as.factor(rep(n*2, times = repeats * length(margins))))
 
 seq_rope_margins_raw <- dat4 |>
-  mutate(n = rep(n*2, times = repeats * length(margins)))
+  bind_cols(n_tibble)
 
 seq_rope_margins <- dat4 |>
   summarise_t_test_loop(n = n, repeats = repeats, seq.test = T, margins = T)
+
+seq_rope_margins_raw |> 
+  group_by(margins) |> 
+  summarise(
+    no_tests = sum(is.na(place)),                      ## Number of tests that did not pass/ were not ran because of previous positive
+    passed_tests = sum(!is.na(place)),                 ## number of tests that passed - ie did not return positive
+    percent_passed = 100 * passed_tests / (l_n * repeats),
+    no_fp = sum(!is.na(p)),                            ## number of false positives
+    percent_fp = 100 * no_fp / (l_n * repeats)) |> 
+  ungroup() |> 
+  mutate(
+    total_tests = sum(passed_tests + no_fp)            ## Total number of tests
+  )
+
 
 write_csv(x = seq_rope_margins, file = here::here("sim_data/ch2_t_tests", "seq_rope_margins.csv"), num_threads = cores)
 write_csv(x = seq_rope_margins_raw, file = here::here("sim_data/ch2_t_tests", "seq_rope_margins_raw.csv.gz"), num_threads = cores)
@@ -170,12 +201,13 @@ dat5 <- foreach::foreach(m = 1:length(margins), .combine = "rbind")%dopar%{
   
 }
 
+n_tibble <- tibble(n = as.factor(rep(n*2, times = repeats * length(margins))))
+
 sim_rope_margins_raw <- dat5 |>
-  mutate(n = as.factor(rep(n*2, times = repeats * length(margins))))
+  bind_cols(n_tibble)
 
 sim_rope_margins <- dat5 |>
   summarise_t_test_loop(n = n, repeats = repeats, seq.test = F, margins = T)
-
 
 write_csv(x = sim_rope_margins, file = here::here("sim_data/ch2_t_tests", "sim_rope_margins.csv"), num_threads = cores)
 write_csv(x = sim_rope_margins_raw, file = here::here("sim_data/ch2_t_tests", "sim_rope_margins_raw.csv.gz"), num_threads = cores)
@@ -201,8 +233,10 @@ dat6 <- foreach::foreach(m = 1:length(margins2), .combine = "rbind")%dopar%{
   
 }
 
+n_tibble2 <- tibble(n = as.factor(rep(n*2, times = repeats * length(margins2))))
+
 sim_rope_small_margins_raw <- dat6 |>
-  mutate(n = as.factor(rep(n*2, times = repeats * length(margins2))))
+  bind_cols(n_tibble2)
 
 sim_rope_small_margins <- dat6 |>
   summarise_t_test_loop(n = n, repeats = repeats, seq.test = F, margins = T)

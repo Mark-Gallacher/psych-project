@@ -13,6 +13,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ### **Chapter 0** : Setting up some Parametres and Loading in Librarys + Functions 
 ```{r}
 library(tidyverse)
+library(gridExtra)
 ## setting relative directory 
 here::i_am("./notebook/Chapter_2_T-tests.Rmd")
 
@@ -28,7 +29,7 @@ l_n = length(n)
 alphas = c(0.05, 0.01, 0.005, 0.001, 0.0005)
 l_a = length(alphas)
 
-repeats = 1000
+repeats = 5000
 ```
 ### **Chapter 1** : Introducing Sequential Testing and the ROPE
 
@@ -91,66 +92,108 @@ seq_rope_alphas_df <- seq_rope_alphas |>
 
 seq_rope_margins_df <- seq_rope_margins |> 
   group_by(margins) |> 
-  summarise(prop = cumsum(failed), n = n, .groups = "drop")
+  summarise(prop = cumsum(failed), n = n, .group = "drop")
 
 head(seq_alphas_df)
 head(seq_rope_alphas_df)
 head(seq_rope_margins_df)
 ```
 
+```{r}
+
+alpha_legend <- function(plot){
+  
+  plot + 
+      scale_color_manual(bquote(alpha), 
+                     values = MetBrewer::met.brewer(name = "Troy", n = 5), 
+                     guide = guide_legend(title.vjust = .5, 
+                                          override.aes = list(linewidth = 3, size = 0, alpha = 1, shape = 0, fill = NA)), 
+                     breaks = c(0.0005, 0.001, 0.005, 0.01, 0.05),
+                     labels = c("0.0005", "0.001", 0.005, 0.01, 0.05)
+                       )
+}
+
+margin_legend <- function(plot, small_margins = F){
+  
+  if(small_margins){
+    breaks <- labels <- seq(0, 0.25, 0.05)
+  }else{
+    breaks <- labels <- seq(0, 0.5, 0.1)
+  }
+  
+  plot + 
+    scale_color_manual("Margins", 
+                      values = MetBrewer::met.brewer(name = "Troy", n = 6), 
+                      guide = guide_legend(title.vjust = .5, 
+                                          override.aes = list(linewidth = 3, size = 5, alpha = 1, shape = 15), nrow = 1), 
+                      breaks = breaks,
+                      labels = labels
+                       )
+
+}
+
+
+```
+
+
 
 ```{r, fig.height= 8, fig.width= 10}
-sim_alphas |> 
+.sim_p1 <-  sim_alphas |> 
   group_by(alpha) |> 
   mutate(f_prop = mean(failed)) |> 
   ungroup() |> 
-  ggplot(aes(x = n, colour = alpha, group = alpha))+
+  ggplot(aes(x = n, colour = as.factor(alpha), group = alpha))+
   geom_line(aes(y = f_prop), linewidth = 1.2)+
   geom_point(aes(y = failed), alpha = .5)+
   scale_x_continuous("Sample Size")+
   scale_y_continuous("False Positive Rate (FPR)", limits = c(0, .06), breaks = c(0, 0.01, 0.03, 0.05))+
-  scale_color_gradient(bquote(alpha), 
-                       guide = guide_colourbar(barwidth = 15, barheight = .8, title.vjust = 1), 
-                       trans = "log",
-                       breaks = c(0.0005, 0.005, 0.05),
-                       labels = c("0.0005", 0.005, 0.05))+
   theme_project_light(base_size = base_size)+  
-  ggtitle("False Positive Rate from T-tests without a ROPE")
+  labs(title = "False Positive Rate", 
+       subtitle = "Without a ROPE")
 
 # ggsave(filename = here::here("images", "ch2", "sim_alphas.png"), dpi = 360, width = 10, height = 8)
+ 
+sim_p1 <- .sim_p1 |> 
+  alpha_legend()
+
+sim_p1
 ```
 
 ```{r, fig.height= 8, fig.width= 10}
-sim_rope_margins |> 
-  ggplot(aes(x = n, colour = margins, group = margins))+
+.sim_rope_p1 <- sim_rope_margins |> 
+  ggplot(aes(x = n, colour = as.factor(margins), group = margins))+
   geom_point(aes(y = failed), size = 1)+
-  scale_x_log10("Sample Size", breaks = c(0, 10, 100, 1000, 10000))+
+  scale_x_log10("Sample Size", breaks = c(10, 100, 1000, 10000), limits = c(5, 10000))+
   scale_y_continuous("False Positive Rate (FPR)", limits = c(0, .06), breaks = c(0, 0.01, 0.03, 0.05))+
-  scale_color_gradient("Margins", 
-                       guide = guide_colourbar(barwidth = 15, barheight = .8, title.vjust = 1), 
-                       breaks = seq(0, 0.5, 0.1),
-                       labels = seq(0, 0.5, 0.1))+
   theme_project_light(base_size = base_size)+  
-  ggtitle("False Positive Rate from T-tests with Different ROPE Margins")
+  labs(title = "False Positive Rate", 
+       subtitle = "With Various ROPEs", 
+       tag = "A")
+
+sim_rope_p1 <- .sim_rope_p1 |> 
+  margin_legend()
+
+sim_rope_p1
 
 # ggsave(filename = here::here("images", "ch2", "sim_rope.png"), dpi = 360, width = 10, height = 8)
-
 ```
 
 
 ```{r, fig.height= 8, fig.width= 10}
-sim_rope_small_margins |> 
-  ggplot(aes(x = n, colour = margins, group = margins))+
+.sim_rope_p2 <- sim_rope_small_margins |> 
+  ggplot(aes(x = n, colour = as.factor(margins), group = margins))+
   geom_point(aes(y = failed), size = 1)+
   scale_x_log10("Sample Size", breaks = c(0, 10, 100, 1000, 10000))+
   scale_y_continuous("False Positive Rate (FPR)", limits = c(0, .06), breaks = c(0, 0.01, 0.03, 0.05))+
-  scale_color_gradient("Margins", 
-                       guide = guide_colourbar(barwidth = 15, barheight = .8, title.vjust = 1), 
-                       breaks = seq(0, 0.25, 0.05),
-                       labels = seq(0, 0.25, 0.05))+
   theme_project_light(base_size = base_size)+  
-  ggtitle("False Positive Rate from T-tests with Different ROPE Margins")
+  labs(title = "False Positive Rate", 
+       subtitle = "With Various ROPEs", 
+       tag = "C")
 
+sim_rope_p2 <- .sim_rope_p2 |> 
+  margin_legend(small_margins = T)
+
+sim_rope_p2
 # ggsave(filename = here::here("images", "ch2", "sim_rope_small.png"), dpi = 360, width = 10, height = 8)
 ```
 
@@ -164,36 +207,41 @@ The last graph shows alpha of 0.05, with different margins for the ROPE. Startin
 If the lines reach 1.00, that means 100% of the 1000 simuated t-test have failed up to that point. It shouldn't be interpreted as 100% of the t-tests return significant results at that one sample size. As this is a sequential procedure, this shows the accumulated false positives, ie the proportion of the tests have returned a False Positive from that sample size to the very start. To make this more clear, if we look at the first figure, with an alpha of 0.01, at a sample size of 1000 (500 in each group), we have a value around 0.50. This means that about 50% of the t-tests have returned FP from the starting point and thus only 50% remain. 
 
 ```{r, fig.height=8, fig.width=10}
-seq_alphas_df |> 
-  ggplot(aes(x = as.integer(n), y = prop, colour = alpha, group = alpha))+
-  geom_line(size = 1.2)+
+.seq_alpha_p1 <- seq_alphas_df |> 
+  ggplot(aes(x = as.integer(n), y = prop, colour = as.factor(alpha), group = alpha))+
+  geom_line(linewidth = 1.2)+
   scale_x_log10("Sample Size")+
   scale_y_continuous("Proportion of False Positives", limits = 0:1)+
-  scale_color_gradient(bquote(alpha), 
-                       guide = guide_colourbar(barwidth = 15, barheight = .8, title.vjust = 1), 
-                       trans = "log",
-                       breaks = c(0.0005, 0.005, 0.05),
-                       labels = c("0.0005", 0.005, 0.05))+
   theme_project_light(base_size = base_size)+  
-  ggtitle("False Positives from Sequential T-tests without a ROPE")
+  labs(title = "Accumulated False Positives", 
+       subtitle = "Without a ROPE", 
+       tag = "A")
 
+seq_alpha_p1 <- .seq_alpha_p1 |> 
+  alpha_legend()
+
+seq_alpha_p1
 # ggsave(filename = here::here("images", "ch2", "seq_alphas.png"), dpi = 360, width = 10, height = 8)
 ```
 
 
 ```{r, fig.height=8, fig.width=10}
-seq_rope_margins_df |> 
+.seq_rope_p1 <- seq_rope_margins_df |> 
   na.omit() |> 
-  ggplot(aes(x = as.integer(n), y = prop, colour = margins, group = margins))+
+  ggplot(aes(x = as.integer(n), y = prop, colour = as.factor(margins), group = margins))+
   geom_line(size = 1.2)+
   scale_x_log10("Sample Size")+
   scale_y_continuous("Proportion of Tests that Survived", limits = 0:1)+
-  ggtitle("False Positives from Sequential T-tests with Different ROPE Margins")+
-  scale_color_gradient("Margins", 
-                       guide = guide_colourbar(barwidth = 15, barheight = .8, title.vjust = 1), 
-                       breaks = seq(0, 0.5, 0.1),
-                       labels = seq(0, 0.5, 0.1))+
-  theme_project_light(base_size = base_size)
+  theme_project_light(base_size = base_size)+
+  labs(title = "Accumulated False Positives", 
+       subtitle = "With Various ROPEs", 
+       tag = "C")
+
+
+seq_rope_p1 <- .seq_rope_p1 |> 
+  margin_legend()
+
+seq_rope_p1
 
 # ggsave(filename = here::here("images", "ch2", "seq_rope.png"), dpi = 360, width = 10, height = 8)
 ```
@@ -222,37 +270,68 @@ These graphs show how the ROPE determines to minimal accepted mean difference th
 Similarily as above, the first two are at 5 different alpha levels with two different ROPEs (0.5 and 1.0 cohen's d). The last graph is at one alpha level (0.05) with different ROPEs (0, 0.1, 0.2, 0.4, 0.8). 
 
 ```{r, fig.height= 8, fig.width=10}
-seq_alphas |> 
-  ggplot(aes(x = as.integer(n), y = mean_diff, colour = alpha, group = alpha))+
+.seq_alphas_p2 <- seq_alphas |> 
+  ggplot(aes(x = as.integer(n), y = mean_diff, colour = as.factor(alpha), group = alpha))+
   geom_point(size = 1)+
   geom_line(size = 1)+
   scale_x_log10("Sample Size")+
   scale_y_continuous("Mean Difference", limits = c(0,2))+
-  theme_project_light(base_size = base_size)+
-  scale_color_gradient(bquote(alpha), 
-                       guide = guide_colourbar(barwidth = 15, barheight = .8, title.vjust = 1), 
-                       trans = "log",
-                       breaks = c(0.0005, 0.005, 0.05),
-                       labels = c("0.0005", 0.005, 0.05))
+  theme_project_light(base_size = base_size)
+
+seq_alphas_p2 <- .seq_alphas_p2 |> 
+  alpha_legend()
+
+seq_alphas_p2
 ```
 
 
 ```{r, fig.height= 8, fig.width=10}
-seq_rope_margins |> 
-  ggplot(aes(x = as.integer(n), y = mean_diff, colour = margins, group = margins))+
+## use the raw csv instead - in next chapter
+.seq_rope_p2 <- seq_rope_margins |> 
+  ggplot(aes(x = as.integer(n), y = mean_diff, colour = as.factor(margins), group = margins))+
   geom_point(size = 1)+
   # geom_line(size = 1)+
-  scale_x_continuous("Sample Size")+
+  scale_x_log10("Sample Size")+
   scale_y_continuous("Mean Difference", limits = c(0,2))+
   theme_project_light(base_size = base_size)+
-  scale_color_gradient("Margins", 
-                       guide = guide_colourbar(barwidth = 15, barheight = .8, title.vjust = 1), 
-                       breaks = seq(0, 0.5, 0.1),
-                       labels = seq(0, 0.5, 0.1))+
-  labs(title = "Mean Difference from Sequential T-tests Using ROPEs")
+  labs(title = "Mean Difference of False Positives", 
+       subtitle = "With Various ROPEs",
+       tag = "D")
+
+
+seq_rope_p2 <- .seq_rope_p2 |> 
+  margin_legend()
+
+seq_rope_p2
 
 # ggsave(filename = here::here("images", "ch2", "seq_rope_mean.png"), dpi = 360, width = 10, height = 8)
 ```
+
+
+```{r, fig.height= 8, fig.width=10}
+## use the raw csv instead - in next chapter
+seq_alphas_p2 <- seq_alphas |> 
+  ggplot(aes(x = as.integer(n), y = mean_diff, colour = as.factor(alpha), group = alpha))+
+  geom_point(size = 1)+
+  # geom_line(size = 1)+
+  scale_x_log10("Sample Size")+
+  scale_y_continuous("Absolute Mean Difference", limits = c(0,2))+
+  theme_project_light(base_size = base_size)+
+  labs(title = "Mean Difference of False Positives", 
+       subtitle = "Without a ROPEs", 
+       tag = "B")+
+  scale_color_manual(bquote(alpha), 
+                     values = MetBrewer::met.brewer(name = "Troy", n = 5), 
+                     guide = guide_legend(title.vjust = .5, 
+                                          override.aes = list(size = 5, alpha = 1, shape = 15)), 
+                     breaks = c(0.0005, 0.001, 0.005, 0.01, 0.05),
+                     labels = c("0.0005", "0.001", 0.005, 0.01, 0.05)
+                       )
+seq_alphas_p2
+
+# ggsave(filename = here::here("images", "ch2", "seq_rope_mean.png"), dpi = 360, width = 10, height = 8)
+```
+
 
 ```{r}
 ## Both of these files are around 2GB, so using parallel computing to load data in quicker
@@ -265,6 +344,10 @@ sim_diff_raw <- read_csv(file = here::here("sim_data", "ch2_t_tests", "sim_diff_
 ## raw values from simulated t-tests - using different ROPE Margins
 sim_margin_raw <- read_csv(file = here::here("sim_data", "ch2_t_tests", "sim_rope_margins_raw.csv"), num_threads =  cores)
 
+
+seq_alphas_raw <- read_csv(file = here::here("sim_data", "ch2_t_tests", "seq_alphas_raw.csv.gz"), num_threads =  cores)
+seq_rope_margins_raw <- read_csv(file = here::here("sim_data", "ch2_t_tests", "seq_rope_margins_raw.csv"), num_threads =  cores)
+
 sim_small_margin_raw <- read_csv(
   file = here::here("sim_data", "ch2_t_tests", "sim_rope_small_margins_raw.csv.gz"), num_threads =  cores)
 
@@ -275,17 +358,27 @@ sim_small_margin_raw <- read_csv(
 ## Only plotting significant results, and showing how mean diff decreases as N increases when the Null is true. 
 ## Closely resembles the critical effect curve (naturally)
 
-sim_raw |> 
+sim_p2 <- sim_raw |> 
   filter(p < alpha, alpha == 0.05) |> 
   ggplot(aes(x = n, y = mean_diff, group = alpha, colour = alpha))+
-  geom_point(alpha = .1, size = 1, show.legend = F)+ 
+  geom_point(alpha = .2, size = 1, show.legend = F, colour = "#235070", position = position_jitter(0.01))+ 
   scale_x_log10("Sample Size", breaks = c(10, 100, 1000, 10000))+
-  scale_y_continuous("Mean Difference")+
+  scale_y_continuous("Absolute Mean Difference")+
   theme_project_light(base_size = base_size)+
-  labs(title = "Mean Difference of False Positives from T-test without a ROPE")
+  labs(title = "Mean Difference of False Positives", 
+       subtitle = "Without a ROPE")
+
+  
+sim_p2
 
 # ggsave(filename = here::here("images", "ch2", "sim_alpha_mean.png"), dpi = 360, width = 10, height = 8)
-  
+```
+
+
+```{r, fig.height= 10, fig.width=12}
+
+grid.arrange(sim_p1, sim_p2, nrow = 1)
+
 ```
 
 
@@ -300,83 +393,155 @@ sim_raw |>
 
 ```{r, fig.height=8, fig.width=10, warning=F}
 ## significant when CI is outside the Margin
-sim_margin_raw |> 
+sim_rope_p3 <- sim_margin_raw |> 
   select(!n) |> 
   mutate(n = rep(2*n, times = 6 * 5000))  |> 
-  filter(p < 0.05, l_ci > margins | u_ci < -margins) |>
-  ggplot(aes(x = n, y = mean_diff, group = margins, colour = margins))+
-  geom_point(alpha = .7, size = 1, show.legend = F)+
-  geom_hline(aes(yintercept = margins, colour = margins), show.legend = F, linewidth = 1.2)+
+  filter(p < 0.05, (l_ci > margins | u_ci < -margins)) |>
+  ggplot(aes(x = n, y = abs(mean_diff), group = margins, colour = as.factor(margins)))+
+  geom_point(alpha = .7, size = 1, show.legend = F, position = position_jitter(0.01))+
+  geom_hline(aes(yintercept = margins, colour = as.factor(margins)), show.legend = F, linewidth = 1.2)+
+  geom_hline(aes(yintercept = 0), colour = "black", linewidth = 1.2)+
   facet_wrap(~margins, labeller = as_labeller(function(x)  paste("Margin: ", as.character(x), sep = "")))+
-  scale_x_log10("Sample Size", breaks = c(10, 100, 1000, 10000))+
+  scale_x_log10("Sample Size", limits = c(5, 10000), breaks = c(10, 100,1000, 10000))+
+  scale_y_continuous("Absolute Mean Difference")+
   theme_project_light(base_size = base_size)+
+  scale_colour_manual(values = MetBrewer::met.brewer("Troy", 6))+
   theme(strip.text = element_text(vjust = 1))+
-  labs(title = "Mean Difference of False Positives from T-test Using Different ROPEs")
+  labs(title = "Mean Difference of False Positives", 
+       subtitle = "With Various ROPEs", 
+       tag = "B")
 
-# ggsave(filename = here::here("images", "ch2", "sim_rope_mean.png"), dpi = 360, width = 10, height = 8)
+sim_rope_p3
+
+# ggsave(plot = sim_rope_p3, filename = here::here("images", "ch2", "sim_rope_mean.png"), dpi = 360, width = 10, height = 8)
 ```
 
 
 ```{r, fig.height=8, fig.width=10, warning=F, eval = F}
-## Plotting only the points that are completely inside the ROPE
-sim_margin_raw |> 
-  select(!n) |> 
-  mutate(n = rep(2*n, times = 6 * 5000))  |> 
-  filter(p < 0.05, l_ci > -margins & u_ci < margins) |>
-  ggplot(aes(x = n, y = mean_diff, group = margins, colour = margins))+
-  geom_point(alpha = .2, size = .4, show.legend = F)+
-  geom_hline(aes(yintercept = margins, colour = margins), show.legend = F, linewidth = 1.2)+
-  facet_wrap(~margins, labeller = as_labeller(function(x)  paste("Margin :", as.character(x), sep = "")))+
-  scale_x_log10("Sample Size", breaks = c(10, 100, 1000, 10000), limits = c(10, 10000))+
-  scale_y_continuous(limits = c(0, .5))+
-  theme_project_light(base_size = base_size)+
-  theme(strip.text = element_text(vjust = 1))
+# ## Plotting only the points that are completely inside the ROPE
+# sim_margin_raw |> 
+#   select(!n) |> 
+#   mutate(n = rep(2*n, times = 6 * 5000))  |> 
+#   filter(p < 0.05, l_ci > -margins & u_ci < margins) |>
+#   ggplot(aes(x = n, y = mean_diff, group = margins, colour = as.factor(margins)))+
+#   geom_point(alpha = .2, size = .4, show.legend = F)+
+#   geom_hline(aes(yintercept = margins, colour = as.factor(margins)), show.legend = F, linewidth = 1.2)+
+#   facet_wrap(~margins, labeller = as_labeller(function(x)  paste("Margin :", as.character(x), sep = "")))+
+#   scale_x_log10("Sample Size", breaks = c(10, 100, 1000, 10000), limits = c(10, 10000))+
+#   scale_y_continuous(limits = c(0, .5))+
+#   theme_project_light(base_size = base_size)+
+#   theme(strip.text = element_text(vjust = 1))+
+#   scale_colour_manual(values = MetBrewer::met.brewer("Troy", 6))
+# 
+
 ```
 
 ```{r, fig.height=8, fig.width=10, warning=F}
 ## significant when CI is outside the Margin
-sim_small_margin_raw |> 
+sim_rope_p4 <- sim_small_margin_raw |> 
   filter(p < 0.05, l_ci > margins | u_ci < -margins) |>
-  ggplot(aes(x = n, y = mean_diff, group = margins, colour = margins))+
+  ggplot(aes(x = n, y = mean_diff, group = margins, colour = as.factor(margins)))+
   geom_point(alpha = .7, size = 1, show.legend = F)+
-  geom_hline(aes(yintercept = margins, colour = margins), show.legend = F, linewidth = 1.2)+
-  facet_wrap(~margins, labeller = as_labeller(function(x)  paste("Margin :", as.character(x), sep = "")))+
-  scale_x_log10("Sample Size", breaks = c(0, 10, 100, 1000, 10000))+
+  geom_hline(aes(yintercept = margins, colour = as.factor(margins)), show.legend = F, linewidth = 1.2)+
+  geom_hline(aes(yintercept = 0), colour = "black", linewidth = 1.2)+
+  facet_wrap(~margins, labeller = as_labeller(function(x)  paste("Margin: ", as.character(x), sep = "")))+
+  scale_x_log10("Sample Size", breaks = c(0, 10, 100, 1000, 10000), limits = c(5, 10000))+
+  scale_y_continuous("Absolute Mean Difference")+
+  scale_colour_manual(values = MetBrewer::met.brewer("Troy", 6))+
   theme_project_light(base_size = base_size)+
   theme(strip.text = element_text(vjust = 1))+
-  labs(title = "Mean Difference of False Positives from T-test Using Different ROPEs")
+  labs(title = "Mean Difference of False Positives", 
+       subtitle = "With Various ROPEs", 
+       tag = "D")
 
-# ggsave(filename = here::here("images", "ch2", "sim_small_rope_mean.png"), dpi = 360, width = 10, height = 8)
+sim_rope_p4
+
+ggsave(plot = sim_rope_p4, filename = here::here("images", "ch2", "sim_small_rope_mean.png"), dpi = 360, width = 10, height = 8)
 ```
 
 
 ```{r, fig.height=8, fig.width=10, warning=F, eval = F}
 ## Plotting only the points that are completely inside the ROPE
-sim_small_margin_raw |> 
-  filter(p < 0.05, l_ci > -margins & u_ci < margins) |>
-  ggplot(aes(x = n, y = mean_diff, group = margins, colour = margins))+
-  geom_point(alpha = .2, size = .4, show.legend = F)+
-  geom_hline(aes(yintercept = margins, colour = margins), linewidth = 1.2, show.legend = F)+
-  facet_wrap(~margins, labeller = as_labeller(function(x)  paste("Margin :", as.character(x), sep = "")))+
-  scale_x_log10("Sample Size", breaks = c(0, 10, 100, 1000, 10000), limits = c(10, 10000))+
-  scale_y_continuous(limits = c(0, .5))+
-  theme_project_light(base_size = base_size)+
-  theme(strip.text = element_text(vjust = 1))
+# sim_small_margin_raw |> 
+#   filter(p < 0.05, l_ci > -margins & u_ci < margins) |>
+#   ggplot(aes(x = n, y = mean_diff, group = margins, colour = as.factor(margins)))+
+#   geom_point(alpha = .2, size = .4, show.legend = F)+
+#   geom_hline(aes(yintercept = margins, colour = as.factor(margins)), linewidth = 1.2, show.legend = F)+
+#   facet_wrap(~margins, labeller = as_labeller(function(x)  paste("Margin :", as.character(x), sep = "")))+
+#   scale_x_log10("Sample Size", breaks = c(0, 10, 100, 1000, 10000), limits = c(10, 10000))+
+#   scale_y_continuous(limits = c(0, .5))+
+#   theme_project_light(base_size = base_size)+
+#   theme(strip.text = element_text(vjust = 1))
 ```
 
 
+```{r, fig.height=8, fig.width=10}
+.seq_rope_p3 <- seq_rope_margins_raw |> 
+  filter(!is.na(p)) |>  
+  mutate(n = 10*as.integer(n)) |> ## some reason as.integer(n = 30) is becoming n = 3, instead of 30...
+  ggplot(aes(x = n, y = mean_diff, group = margins, colour = as.factor(margins)))+
+  geom_point(size = 1, show.legend = F, position = position_jitter(0.01))+
+  geom_hline(aes(yintercept = margins, colour = as.factor(margins)), linewidth = 1.2, show.legend = F)+
+  geom_hline(aes(yintercept = 0),colour = "black", linewidth = 1.2)+
+  facet_wrap(~margins, labeller = as_labeller(function(x)  paste("Margin: ", as.character(x), sep = "")))+
+  scale_x_log10("Sample Size", breaks = c(5, 10, 100, 1000, 10000), limits = c(10, 10000))+
+  scale_y_continuous("Absolute Mean Difference")+
+  theme_project_light(base_size = base_size)+
+  labs(title = "Mean Difference of False Positives", 
+       subtitle = "With Various ROPEs",
+       tag = "D")
 
+
+seq_rope_p3 <- .seq_rope_p3 |> 
+  margin_legend()
+
+seq_rope_p3
+
+ggsave(plot = seq_rope_p3, filename = here::here("images", "ch2", "seq_rope_mean.png"), dpi = 360, width = 10, height = 8)
+## I think this is a better graph as p1 or p2 (seq_rope_p*)
+```
 
 ```{r, fig.height=8, fig.width=10}
-# seq_rope_alphas |> 
-#   filter(p < alpha) |> 
-#   ggplot(aes(x = as.integer(n), y = mean_diff, colour = alpha, group = alpha))+
-#   geom_point(size = 1)+
-#   geom_line(size = 1)+
-#   scale_x_log10("Sample Size)+
-#   scale_y_continuous("Mean Difference", limits = c(0,2))+
-#   theme_project_light()+
-#   labs(tag = "Figure 3.2A")
+options(scipen = 10)
+
+seq_alphas_p3 <- seq_alphas_raw |> 
+  ggplot(aes(x = as.integer(n), y = mean_diff, colour = as.factor(alpha), group = alpha))+
+  geom_point(size = 1, position = position_jitter(0.01))+
+  geom_hline(aes(yintercept = 0),colour = "black", linewidth = 1.2)+
+  facet_wrap(~alpha, labeller = as_labeller(function(x)  paste("Alpha: ", as.character(x), sep = "")))+
+  scale_x_log10("Sample Size")+
+  scale_y_continuous("Absolute Mean Difference", limits = c(0,2))+
+  theme_project_light(base_size = base_size)+
+  labs(title = "Mean Difference of False Positives", 
+       subtitle = "Without a ROPEs", 
+       tag = "B")+
+  scale_color_manual(bquote(alpha), 
+                     values = MetBrewer::met.brewer(name = "Troy", n = 5), 
+                     guide = guide_legend(title.vjust = .5, 
+                                          override.aes = list(size = 5, alpha = 1, shape = 15)), 
+                     breaks = c(0.0005, 0.001, 0.005, 0.01, 0.05),
+                     labels = c("0.0005", "0.001", 0.005, 0.01, 0.05)
+                       )
+seq_alphas_p3
+
+ggsave(plot = seq_alphas_p3, filename = here::here("images", "ch2", "seq_alpha_mean.png"), dpi = 360, width = 10, height = 8)
+```
+
+
+```{r, fig.height=12, fig.width=16}
+sim_grid <- grid.arrange(sim_rope_p1, sim_rope_p3, sim_rope_p2, sim_rope_p4, nrow = 2)
+
+sim_grid
+
+ggsave(plot = sim_grid, filename = here::here("images", "ch2", "sim_grid.png"), dpi = 360, width = 16, height = 12)
+```
+
+```{r, fig.height=12, fig.width=16}
+seq_gird <- grid.arrange(seq_alpha_p1, seq_alphas_p3, seq_rope_p1, seq_rope_p3, nrow = 2)
+
+seq_gird
+
+ggsave(plot = seq_gird, filename = here::here("images", "ch2", "seq_gird.png"), dpi = 360, width = 16, height = 12)
 ```
 
 ### **Chapter 4.1**: Comparing Graphs when there is no ROPE - reading in data

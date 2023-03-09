@@ -1,5 +1,5 @@
 ---
-title: "Chapter 3 - Bayesian Consistency"
+title: "Brms-priors"
 author: "Mark G"
 date: "2022-11-16"
 output: html_document
@@ -17,22 +17,14 @@ library(doParallel)
 library(foreach)
 library(ggdist)
 
-## setting relative directory 
-here::i_am("./notebook/Chapter_3_Bayes.Rmd")
-
 source(here::here("my-scripts", "R", "project_themes.R"))
 
 base_size = 13
 ```
 
-## Please Note:
-Whilst some of these outputs are in the final report, this notebook itself has not been organised or properly documented. The original goal of this document was to explore the `Brms` and `ggdist` package in case I wanted to include Bayesian Parameter Estimation 
-
-It is very likely, in the current state, this notebook will inadequately present graphs or explain the reasoning or purpose behind them.
-
 
 ```{r}
-cores <- makeCluster(parallel::detectCores() - 2)
+cores <- parallel::detectCores() - 2 
 
 # RcppParallel::setThreadOptions(numThreads = cores)
 doParallel::registerDoParallel(cores = cores)
@@ -80,7 +72,7 @@ output <- vector("list", length = length(models))
 for(i in 1:length(models)){
   output[[i]] <- models[[i]] |>
       tidybayes::spread_draws(b_yA, b_yB) |> 
-      dplyr::mutate(diff = b_yB - b_yA)
+      dplyr::mutate(diff = b_yA - b_yB)
 }
 
 output <- output |> 
@@ -101,7 +93,7 @@ plot_posterior <- function(df, hdi.df, null = T){
   }else{
     subtitle <- "Real Mean Difference of 1"
     true_value <-  1
-    x_limits <- c(NA, 1.5)
+    x_limits <- c(.2, 1.8)
   }
   
   text_df <- tibble(
@@ -185,17 +177,18 @@ models_df <- models |>
   bind_rows() |>
   mutate(prior = rep(c("p1", "p2", "p3"), each = n_chains * (n_iter - n_warmup) * length(sample_size))) 
 
-# write_csv(models_df, file = here::here("sim_data", "ch3_bayes", "bayes_models_null.csv"))
 ```
 
 
 ```{r}
-models_df <- read_csv(file = here::here("sim_data", "ch3_bayes", "bayes_models_null.csv"))
+# write_csv(models_df, file = here::here("sim_data", "ch3_bayes", "bayes_models_null.csv"))
+
+models_df <- read_csv(here::here("sim_data", "ch3_bayes", "bayes_models_null.csv"))
 
 hdi_df <- models_df |> 
-  dplyr::group_by(n, prior) |> 
+  group_by(prior, n) |> 
   tidybayes::mean_hdci(diff) |> 
-  dplyr::ungroup()
+  ungroup()
 ```
 
 
@@ -203,7 +196,7 @@ hdi_df <- models_df |>
 models_df |> 
   plot_posterior(hdi.df = hdi_df, null = T)
 
-# ggsave(filename = here::here("images","ch3", "posterior-null.png"), dpi = 360, width = 10, height = 8)
+ggsave(filename = here::here("images","ch3", "posterior-null.png"), dpi = 360, width = 10, height = 8)
 ```
 ### Simulating Bayesian Parameter Estimation when NULL is FALSE
 ```{r, eval = F}
@@ -228,19 +221,16 @@ for(i in 1:length(pr_list)){
 ```{r, eval = F}
 models_df1 <- models1 |>
   bind_rows() |>
-  mutate(prior = rep(
-    c("p1", "p2", "p3"), each = n_chains * (n_iter - n_warmup) * length(sample_size))
-    )
-
-# write_csv(models_df1, file = here::here("sim_data", "ch3_bayes", "bayes_models_alter.csv"))
+  mutate(prior = rep(c("p1", "p2", "p3"), each = n_chains * (n_iter - n_warmup) * length(sample_size)))
 ```
 
 ```{r}
+# write_csv(models_df1, file = here::here("sim_data", "ch3_bayes", "bayes_models_alter.csv"))
 models_df1 <- read_csv(file = here::here("sim_data", "ch3_bayes", "bayes_models_alter.csv"))
 
 hdi_df1 <- models_df1 |> 
   group_by(prior, n) |> 
-  tidybayes::mean_hdci(diff) |> 
+  tidybayes::mean_hdci(b_yB) |> 
   ungroup()
 ```
 
@@ -248,7 +238,7 @@ hdi_df1 <- models_df1 |>
 models_df1 |> 
   plot_posterior(hdi.df = hdi_df1, null = F)
 
-# ggsave(filename = here::here("images", "ch3", posterior-alter.png"), dpi = 360, width = 10, height = 8)
+ggsave(filename = here::here("images", "ch3-posterior-alter.png"), dpi = 360, width = 10, height = 8)
 ```
 
 
@@ -315,7 +305,7 @@ names(bf_list) <- c("12", "23", "13")
 
 ```
 
-```{r, eval = F}
+```{r}
 p1 <- set_prior("normal(0, 0.1)")
 p2 <- set_prior("uniform(-10,10)", lb = -10, ub = 10)
 p3 <- set_prior("normal(1, 0.1)")
@@ -331,9 +321,6 @@ quiet <- function(x) {
 bayes_models <- vector("list", length = length(pr_list))
 
 for(i in 1:length(pr_list)){
-  
-  pr <- set_prior(pr_list[[i]])
-  
   bayes_models[[i]] <- quiet(sim_df_1 |> 
   filter(!eval(time_cond)) |> 
   pivot_for_mn(replication = F) |> 
@@ -343,7 +330,7 @@ for(i in 1:length(pr_list)){
   bf(mn ~ cond, sigma ~ cond),  
   data = .x,
   family = student, 
-  prior = pr 
+  prior = pr_list 
   chains = n_chains,
   iter = n_iter, 
   warmup = n_warmup, 
@@ -362,11 +349,14 @@ bayes_models_df <- bayes_models |>
    "spread" = map(model, ~ tidybayes::spread_draws(.x, b_Intercept, b_condcond2, b_condcond3))) |> 
   unnest(spread)
 
-# write_csv(bayes_models_df, file = here::here("sim_data", "ch3_bayes", "bayes_model_egg.csv"), num_threads = cores)
+write_csv(bayes_models_df, file = here::here("sim_data", "ch3_bayes", "bayes_model_egg.csv"), num_threads = cores)
+
+
+
 
 ```
 
-```{r, eval = F}
+```{r}
 sim_df_1 |> 
     filter(!eval(time_cond)) |> 
     pivot_for_mn(replication = F) |> 
@@ -378,7 +368,7 @@ sim_df_1 |>
   theme_project_light(base_size = 12)
 ```
 
-```{r, fig.width= 8, fig.height=10, eval = F}
+```{r, fig.width= 8, fig.height=10}
 
 bayes_models_df |> 
   ggplot()+
@@ -391,79 +381,31 @@ bayes_models_df |>
 
 
 ```
-
-
 ### Testing Kruschke's Recommendation
 ```{r, eval = F}
 ## Using bf() for brmsformula so mean and sd are estimated, allowing sd to be unequal. 
 ## A student distribution was used to reduce influence of extreme values
 ## And no prior was specified - to see that the different would be
-rep_bf_df_1 <- rep_df_1 |> 
-  filter(!eval(time_cond), experiment == "A") |> 
-  pivot_for_mn(replication = T)
 
-rep_bf_mn_1 <- rep_bf_df_1 |> 
-  group_by(n_trial) |> 
-  summarise(mean =  mean(mn),
-            sd = 1000*mean(sd), 
-            .groups = "keep")
+bayes_models2 <- sim_df_1 |> 
+  filter(!eval(time_cond)) |> 
+  pivot_for_mn(replication = F) |> 
+  group_nest(n_trial, .key = "values") |> 
+  mutate(model = map(.x = values, 
+    .f = ~ brms::brm(
+  bf(mn ~ 0 + cond, sigma ~ cond),  
+  data = .x,
+  family = student, 
+  chains = n_chains,
+  iter = n_iter, 
+  warmup = n_warmup, 
+  threads = cores, 
+  save_pars = save_pars(all=TRUE), 
+  cores = n_chains
+      )
+  )
+  )
 ```
-
-```{r, eval = F}
-## I think brms::standvar does not like tibbles
-prior_matrix <- cbind(rep_bf_mn_1$mean, rep_bf_mn_1$sd)
-
-doParallel::registerDoParallel(cores = cores)
-
-bayes_rep_eeg <- foreach::foreach(i = 1:length(rep_bf_mn_1$n_trial))%dopar%{
-  
-  ## subset data and sync to priors, for each sample size and sd
-  trial <- rep_bf_mn_1$n_trial[[i]]
-  
-  df <- rep_bf_df_1 |> subset(n_trial = trial)
-  
-  ## define unique prior for each test, using observed mean and sd values
-  prior_params <- brms::stanvar(prior_matrix[i, 1], 'prior_mean') + brms::stanvar(prior_matrix[i, 2], 'prior_sd')
-  
-  x_prior <- brms::prior(normal(prior_mean, prior_sd))
-  
-  brms::brm(
-    brms::bf(mn ~ 0 + cond, sigma ~ cond),  
-    data = df,
-    prior = x_prior, 
-    stanvars = prior_params,
-    family = "student", 
-    chains = n_chains,
-    iter = n_iter, 
-    warmup = n_warmup, 
-    threads = length(cores), 
-    save_pars = brms::save_pars(all=TRUE), 
-    cores = n_chains
-        )
-
-}
-
-bayes_rep_eeg[[1]] |> prior_summary()
-bayes_rep_eeg[[1]] |> posterior_summary()
-
-bayes_rep_eeg_df <- map_dfr(bayes_rep_eeg, as_draws_df) |> 
-  mutate(n_trial = rep(
-    x = unique(rep_bf_df_1$n_trial), 
-    each = n_chains * (n_iter - n_warmup))) |> 
-  select(n_trial, 
-         cond1 = b_condcond1, 
-         cond2 = b_condcond2, 
-         cond3 = b_condcond3, 
-         sigma = b_sigma_condcond3) |> 
-  mutate(diff13 = cond3 - cond1, 
-         diff12 = cond2 - cond1)
-
-write_csv(bayes_rep_eeg_df, here::here("sim_data", "ch4_eeg_sims", "posterior_original.csv"))
-
-```
-
-
-
 ```{r}
 # test <- sim_df_1 |> 
 #   filter(!eval(time_cond)) |> 
@@ -496,12 +438,8 @@ bayes_models_df2 <- bayes_models2 |>
 
 brms::prior_summary(bayes_models2$model[[1]])
 
-# write_csv(bayes_models_df2, here::here("sim_data", "ch3_bayes", "bayes_model_egg2.csv"))
-```
+# write_csv(bayes_models_df2, here::here("sim_data", "ch3_bayes", "bayes_model_egg2,csv"))
 
-
-```{r}
-bayes_models_df2 <- read_csv(here::here("sim_data", "ch3_bayes", "bayes_model_egg2.csv"))
 
 hdi_model_2 <- bayes_models_df2 |> 
   group_by(n_trial) |> 
@@ -514,7 +452,7 @@ hdi_model_2 <- bayes_models_df2 |>
 
 ```
 
-```{r, fig.height = 7, fig.width= 10}
+```{r, eval = F, fig.height = 8, fig.height= 10}
 bayes_models_df2 |> 
   ggplot(aes(x = b_condcond3 - b_condcond1, y = 0, group = n_trial))+
   stat_halfeye(p_limits = c(0.05, 0.95), 
@@ -532,7 +470,7 @@ bayes_models_df2 |>
   labs(title = "Parameter Estimation of Mean Difference of Condition 1 and 3")
 ```
 
-```{r, fig.height = 7, fig.width= 10}
+```{r, eval = F, fig.height = 8, fig.height= 10}
 bayes_models_df2 |> 
   ggplot(aes(x = b_condcond2 - b_condcond1, y = 0, group = n_trial))+
   stat_halfeye(p_limits = c(0.05, 0.95), 
@@ -629,7 +567,7 @@ mode_hdi(as_draws_df(bf_eeg_model2), .width = .95)
 # get_variables(bf_eeg_model)
 ```
 
-```{r, eval = F}
+```{r}
 bf_eeg_model |> 
   tidybayes::spread_draws(b_condcond3) |> 
   ggplot(aes(b_condcond3))+
@@ -661,18 +599,18 @@ plot_posterior_eeg <- function(df, diff_13 = T){
 ```
 
 
-```{r, eval = F}
+```{r}
 bf_eeg_model |> plot_posterior_eeg()
 df_1 |> plot_posterior_eeg(diff_13 = F)
 ```
  
  
-```{r, eval = F}
+```{r}
  df_2 |> plot_posterior_eeg()
  df_2 |> plot_posterior_eeg(diff_13 = F)
 ```
 
-```{r, eval = F}
+```{r}
  df_3 |> plot_posterior_eeg()
  df_3 |> plot_posterior_eeg(diff_13 = F)
 ```

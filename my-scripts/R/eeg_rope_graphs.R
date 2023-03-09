@@ -34,7 +34,7 @@ fill_colours = c("#00BFC4", "#F8766D")
 line_size = 1
 line_alpha = .8
 # alpha for the ci range fill
-fill_alpha = .2
+fill_alpha = .5
 
 
 subtitle_for_ropes <- list(
@@ -226,7 +226,8 @@ plot_base <- function(df){
          colour = "Condition")+
     scale_colour_manual(values = MetBrewer::met.brewer("Austria", 3),
                         labels = c("1", "2", "3"), 
-                        guide = guide_legend(override.aes = list(linewidth = 2, shape = NA), order = 1))
+                        guide = guide_legend(override.aes = list(linewidth = 2, shape = NA), order = 1))+
+    scale_y_continuous("", breaks = c(-1, 0, 1, 2))
   
   return(p)
 }

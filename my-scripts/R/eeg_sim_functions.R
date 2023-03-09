@@ -221,6 +221,7 @@ get_bf_from_raw <- function(df){
 }
 
 get_eeg_nu_rope <- function(df, alpha = 0.05, num_time_points, static_margins, replication = F){
+
   #### NULL ROPE
   if(replication) {
     f_pre <- quote(time < 0, experiment == "A")

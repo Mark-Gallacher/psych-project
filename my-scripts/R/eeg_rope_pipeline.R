@@ -275,11 +275,12 @@ tidy_rope_names <- function(df){
 ## each ROPE is then compared to the total number of fp when not using a ROPE
 
 
-eval_rope <- function(df, alpha, effect_time_vector){
+eval_rope <- function(df, rope_df, alpha, effect_time_vector){
   
   
   # Checking for Significance
   p_cond <- expression(p < alpha)
+  p13_cond <- expression(p_13 < alpha)
   
   # Time outside of an effect
   time_cond <- expression((time < effect_time[1] | time > effect_time[2]))
@@ -289,20 +290,12 @@ eval_rope <- function(df, alpha, effect_time_vector){
   tp_cond <- expression(eval(p_cond) & !eval(time_cond))
   fn_cond <- expression(!eval(p_cond) & !eval(time_cond))
   tn_cond <- expression(!eval(p_cond) & eval(time_cond))
-  
-  # Creating df where the max and min of the ROPEs has its own column and 
-  # there is one column which contains info of what type of ROPE it is
-  rope_df <- df |>  
-   tidyr::pivot_longer(cols= -c(1:10, set),
-                 names_pattern = "^(nu_.*).*(...)$", 
-                 names_to = c("rope", "name")) |> 
-   dplyr::mutate(rope= dplyr::if_else(rope=="", "value", rope)) |> 
-    filter(!is.na(rope),
-           !is.na(time)) |> 
-    pivot_wider(id_cols = c(1:10, rope, set), 
-                names_from = name, 
-                values_from = value, 
-                names_repair = "check_unique")
+
+  ## writing it out in full to be more explicit
+  fp13_cond <- expression(eval(p13_cond) & eval(time_cond))
+  tp13_cond <- expression(eval(p13_cond) & !eval(time_cond))
+  fn13_cond <- expression(!eval(p13_cond) & !eval(time_cond))
+  tn13_cond <- expression(!eval(p13_cond) & eval(time_cond))
   
   # creating a df to find fpr and fnr, to evaluate different ropes
   eval_rope_df <- rope_df |>  
@@ -313,27 +306,27 @@ eval_rope <- function(df, alpha, effect_time_vector){
       fn = dplyr::if_else(eval(fn_cond) & (ci_l <= max | ci_u >= min), 1, 0),
       tn = dplyr::if_else(eval(tn_cond) & (ci_l <= max | ci_u >= min), 1, 0)
     ) |> 
-    group_by(n_trial, rope) |> 
-    summarise(across(.cols = c(fp, tp, fn, tn), .fns = ~ sum(.x))) |> 
+    group_by(experiment, n_trial, rope) |> 
+    summarise(across(.cols = c(fp, tp, fn, tn), .fns = ~ sum(.x)), .groups = "drop") |> 
    dplyr::mutate(
       fpr = fp / (fp + tn),
       tpr = tp / (tp + fn),
       fnr = fn / (fn + tp),
       tnr = tn / (tn + fp)
     ) |> 
-    filter(!is.na(fp))
+    filter(!is.na(fp)) ## weird bug ?
   
   # create a df to store all the fp, to use as baseline
   baseline_df <- df |> 
    dplyr::mutate(
-      fp = dplyr::if_else(eval(fp_cond), 1, 0),
-      tn = dplyr::if_else(eval(tn_cond), 1, 0),
-      fn = dplyr::if_else(eval(fn_cond), 1, 0),
-      tp = dplyr::if_else(eval(tp_cond), 1, 0),
+      fp = dplyr::if_else(eval(fp13_cond), 1, 0),
+      tn = dplyr::if_else(eval(tn13_cond), 1, 0),
+      fn = dplyr::if_else(eval(fn13_cond), 1, 0),
+      tp = dplyr::if_else(eval(tp13_cond), 1, 0),
     ) |> 
-   dplyr::select(n_trial, fp, tn, fn, tp) |> 
+   dplyr::select(n_trial, experiment, fp, tn, fn, tp) |> 
     filter(!is.na(n_trial)) |> 
-    group_by(n_trial) |> 
+    group_by(n_trial, experiment) |> 
     summarise(across(.cols = dplyr::everything(), 
                      .fns = ~ sum(.x, na.rm = T), 
                      .names = "sum_{.col}"),
@@ -345,13 +338,12 @@ eval_rope <- function(df, alpha, effect_time_vector){
       prop_tn = sum_tn / (sum_tn + sum_fp)
     )
   
-  output <- output <- eval_rope_df |> 
+  output <- eval_rope_df |> 
     dplyr::inner_join(baseline_df, by = "n_trial") |> 
-   dplyr::mutate(
+    dplyr::mutate(
       rel_fp = fp/sum_fp,  # relative FP proportion to baseline (% of FP that were not prevented)
       rel_tp = tp/sum_tp  # relative TP proportion to baseline (% of TP that were not prevented)
-    ) |>
-    tidy_rope_names()
+    ) 
   
   
   return(output)

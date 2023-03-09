@@ -143,7 +143,7 @@ simulate_t_tests <- function(sample_size,
       mean_diff_vector[i] <- abs(t_test[[mean]][[1]] - t_test[[mean]][[2]])
       conf_vector[i, 1] <- t_test[[ci]][[1]]
       conf_vector[i, 2] <- t_test[[ci]][[2]]
-      place <- i
+      place[i] <- i
     }
   }
   
@@ -194,7 +194,7 @@ summarise_t_test_loop <- function(df, n, repeats, seq.test = T, margins = F){
           mutate(n = as.integer(rep(n*2, times = times))) |> 
           na.omit() |> 
           group_by(margins, n) |> 
-          summarise(failed = sum( (p < 0.05) & (l_ci < -margins | u_ci > margins) ) / repeats, 
+          summarise(failed = sum( (p < 0.05) & (l_ci > margins | u_ci < -margins) ) / repeats, 
                     passed = (1 - failed),
                     mean_diff = mean(mean_diff, na.rm = TRUE), 
                     l_ci = mean(l_ci, na.rm = TRUE), 
