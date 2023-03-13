@@ -7,7 +7,7 @@ theme_project_light <- function(base_size = 10){
   
   theme_minimal(base_size = base_size)  %+replace%
         theme(# Bold, bigger title
-              plot.title = element_markdown(face = "bold", size = rel(1.5), hjust = 0, lineheight = 1, vjust = 1),
+              plot.title = element_text(face = "bold", size = rel(1.5), hjust = 0, lineheight = 1, vjust = 1),
               # Plain, slightly bigger subtitle that is grey
               plot.subtitle = element_markdown(face = "plain", size = rel(1.1), color = "grey30", hjust = 0, lineheight = 1.2, vjust = 0),
               # Italic, smaller, grey caption that is left-aligned

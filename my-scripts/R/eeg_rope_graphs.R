@@ -56,129 +56,147 @@ subtitle_for_ropes <- list(
 ## Graph for FPs on y axis, and different ROPEs = Different Colour
 ## Four graphs because we can use FWER or % of false positives (so 20% would mean that 80% of false positives were prevented compared to raw p-values)
 ## Sometimes a log scale is clearer to see difference but arithmetric scale is easier to understand naturally. (4 is just the combinations of these two factors)
-fp_graphs <- function(df, effect = T){
+fp_graphs <- function(df, effect = T, var){
   
   
   g1 <- df |> 
-    filter(n_trial != 10) |> 
-    ggplot(aes(n_trial, fpr, colour = as.factor(rope), group = rope))+
-    geom_line()+
-    geom_point()+
-    geom_line(aes(y = prop_fp), colour = "black")+ ## showing baseline values - fp for no ROPE
-    geom_point(aes(y = prop_fp), colour = "black")+
-    scale_x_continuous("Sample Size")+
-    scale_y_continuous("FWER")+
-    scale_color_discrete(name = "Method")+
-    ggtitle("Minimising False Positves across Difference Sample Sizes")
+    ggplot(aes(n_trial, fpr, colour = as.factor({{ var }}), group = {{var}}))+
+    geom_line(linewidth = 1.3)+
+    geom_point(size = 2, shape = 15, show.legend = F)+
+    geom_line(aes(y = prop_fp, colour = '6'), linewidth = 1.3)+ ## showing baseline values - fp for no ROPE
+    geom_point(aes(y = prop_fp, colour = '6'), size = 2, shape = 15, show.legend = F)+
+    geom_hline(yintercept = 0, linewidth = 1)+
+    scale_x_continuous("Sample Size", 
+                       breaks = c(10, 25, 50, 100, 150, 200), 
+                       labels = c("10", "25", "50", "100", "150", "200"))+
+    scale_y_continuous("FPR")+
+    scale_color_manual(name = "Method", 
+                       values = MetBrewer::met.brewer(name = "Lakota", type = "discrete", n = 6), 
+                       labels = c("Baseline", "ROI Control", "Pre-stimulus", "0.1 Units", "0.2 Units", "0.3 Units"),
+                       guide = guide_legend(override.aes = list(linewidth = 3)))+
+    ggtitle("False Positves - Different ROPEs")
   
   
   g2 <- df |> 
-    filter(n_trial != 10) |> 
-    ggplot(aes(n_trial, fpr, colour = as.factor(rope), group = rope))+
-    geom_line()+
-    geom_point()+
-    geom_line(aes(y = prop_fp), colour = "black")+ ## showing baseline values - fp for no ROPE
-    geom_point(aes(y = prop_fp), colour = "black")+
-    scale_x_continuous("Sample Size")+
-    scale_y_log10("FWER")+
-    scale_color_discrete(name = "Method")+
-    ggtitle("Minimising False Positves across Difference Sample Sizes")
+    ggplot(aes(n_trial, fpr, colour = as.factor({{ var }}), group = {{var}}))+
+    geom_line(linewidth = 1.3)+
+    geom_point(size = 2, shape = 15, show.legend = F)+
+    geom_line(aes(y = prop_fp, colour = '6'), linewidth = 1.3)+ ## showing baseline values - fp for no ROPE
+    geom_point(aes(y = prop_fp, colour = '6'), size = 2, shape = 15, show.legend = F)+
+    scale_x_continuous("Sample Size", 
+                       breaks = c(10, 25, 50, 100, 150, 200), 
+                       labels = c("10", "25", "50", "100", "150", "200"))+
+    scale_y_log10("FPR")+
+    scale_color_manual(name = "Method", 
+                       values = MetBrewer::met.brewer(name = "Lakota", type = "discrete", n = 6), 
+                       labels = c("Baseline", "ROI Control", "Pre-stimulus", "0.1 Units", "0.2 Units", "0.3 Units"),
+                       guide = guide_legend(override.aes = list(linewidth = 3)))+
+    ggtitle("False Positves - Different ROPEs")
 
-  
-  g3 <- df |> 
-    filter(n_trial != 10) |> 
-    ggplot(aes(n_trial, 100*rel_fp, colour = as.factor(rope), group = rope))+
-    geom_line()+
-    geom_point()+
-    geom_line(aes(y = 100*rel_fp/rel_fp), colour = "black")+ ## showing baseline values - fp for no ROPE
-    geom_point(aes(y = 100*rel_fp/rel_fp), colour = "black")+ ## I know prop_fp/prop_fp = 1, but I am showing where it comes from
-    scale_x_continuous("Sample Size")+
-    scale_y_continuous("Percentage of FP captured (%)")+
-    scale_color_discrete(name = "Method")+
-    ggtitle("Minimising False Positves across Difference Sample Sizes")
-  
-  g4 <- df |> 
-    filter(n_trial != 10) |> 
-    ggplot(aes(n_trial, 100*rel_fp, colour = as.factor(rope), group = rope))+
-    geom_line()+
-    geom_point()+
-    geom_line(aes(y = 100*rel_fp/rel_fp), colour = "black")+ ## showing baseline values - fp for no ROPE
-    geom_point(aes(y = 100*rel_fp/rel_fp), colour = "black")+
-    scale_x_continuous("Sample Size")+
-    scale_y_log10("Percentage of FP captured (%)")+
-    scale_color_discrete(name = "Method")+
-    ggtitle("Minimising False Positves across Difference Sample Sizes")
+  # 
+  # g3 <- df |> 
+  #   ggplot(aes(n_trial, 100*rel_fp, colour = as.factor({{ var }}), group = {{var}}))+
+  #   geom_line()+
+  #   geom_point()+
+  #   geom_line(aes(y = 100*rel_fp/rel_fp), colour = "black")+ ## showing baseline values - fp for no ROPE
+  #   geom_point(aes(y = 100*rel_fp/rel_fp), colour = "black")+ ## I know prop_fp/prop_fp = 1, but I am showing where it comes from
+  #   scale_x_continuous("Sample Size")+
+  #   scale_y_continuous("Percentage of FP captured (%)")+
+  #   scale_color_discrete(name = "Method")+
+  #   ggtitle("Minimising False Positves across Difference Sample Sizes")
+  # 
+  # g4 <- df |> 
+  #   ggplot(aes(n_trial, 100*rel_fp, colour = as.factor({{ var }}), group = {{var}}))+
+  #   geom_line()+
+  #   geom_point()+
+  #   geom_line(aes(y = 100*rel_fp/rel_fp), colour = "black")+ ## showing baseline values - fp for no ROPE
+  #   geom_point(aes(y = 100*rel_fp/rel_fp), colour = "black")+
+  #   scale_x_continuous("Sample Size")+
+  #   scale_y_log10("Percentage of FP captured (%)")+
+  #   scale_color_discrete(name = "Method")+
+  #   ggtitle("Minimising False Positves across Difference Sample Sizes")
   
   
   
-if (effect){
-  g1 <- g1 + labs(subtitle = "With an Underlying Effect")
-  g2 <- g2 + labs(subtitle = "With an Underlying Effect")
-  g3 <- g3 + labs(subtitle = "With an Underlying Effect")
-  g4 <- g4 + labs(subtitle = "With an Underlying Effect")
-}else{
-  g1 <- g1 + labs(subtitle = "With No Underlying Effect")
-  g2 <- g2 + labs(subtitle = "With No Underlying Effect")
-  g3 <- g3 + labs(subtitle = "With No Underlying Effect")
-  g4 <- g4 + labs(subtitle = "With No Underlying Effect")
-}
+# if (effect){
+#   sub_title <- "With an Underlying Effect"
+#   g1 <- g1 + labs(subtitle = sub_title)
+#   g2 <- g2 + labs(subtitle = sub_title)
+#   # g3 <- g3 + labs(subtitle = sub_title)
+#   # g4 <- g4 + labs(subtitle = sub_title)
+# }else{
+#   subtitle <- "With No Underlying Effect"
+#   g1 <- g1 + labs(subtitle = sub_title)
+#   g2 <- g2 + labs(subtitle = sub_title)
+#   # g3 <- g3 + labs(subtitle = sub_title)
+#   # g4 <- g4 + labs(subtitle = sub_title)
+# }
+#   
   
-  
-  return(print(list(g1,g2,g3,g4)))
+  return(print(list(g1,g2)))
 }
 
 ## Same as above but for True positives
-tp_graphs <- function(df){
+tp_graphs <- function(df, var){
+  
   
   g1 <- df |> 
-    filter(n_trial != 10) |> 
-    ggplot(aes(n_trial, tpr, colour = as.factor(rope), group = rope))+
-    geom_line()+
-    geom_point()+
-    geom_line(aes(y = prop_tp), colour = "black")+ ## showing baseline values - fp for no ROPE
-    geom_point(aes(y = prop_tp), colour = "black")+
-    scale_x_continuous("Sample Size")+
+    ggplot(aes(n_trial, tpr, colour = as.factor({{ var }}), group = {{var}}))+
+    geom_line(linewidth = 1.3)+
+    geom_point(size = 2, shape = 15, show.legend = F)+
+    geom_line(aes(y = prop_tp, colour = '6'), linewidth = 1.3 )+ ## showing baseline values - fp for no ROPE
+    geom_point(aes(y = prop_tp, colour = '6'), size = 2, shape = 15, show.legend = F)+
+    scale_x_continuous("Sample Size", 
+                       breaks = c(10, 25, 50, 100, 150, 200), 
+                       labels = c("10", "25", "50", "100", "150", "200"))+
     scale_y_log10("TPR")+
-    scale_color_discrete(name = "Method")+
-    ggtitle("Maximising True Positves across Difference Sample Sizes")
+    scale_color_manual(name = "Method", 
+                       values = MetBrewer::met.brewer(name = "Lakota", type = "discrete", n = 6), 
+                       labels = c("Baseline", "ROI Control", "Pre-stimulus", "0.1 Units", "0.2 Units", "0.3 Units"),
+                       guide = guide_legend(override.aes = list(linewidth = 3)))+
+    ggtitle("True Positves - Different ROPEs")+
+    theme_project_light(base_size = 12)
   
   g2 <- df |> 
-    filter(n_trial != 10) |> 
-    ggplot(aes(n_trial, tpr, colour = as.factor(rope), group = rope))+
-    geom_line()+
-    geom_point()+
-    geom_line(aes(y = prop_tp), colour = "black")+ ## showing baseline values - fp for no ROPE
-    geom_point(aes(y = prop_tp), colour = "black")+
-    scale_x_continuous("Sample Size")+
+    ggplot(aes(n_trial, tpr, colour = as.factor({{ var }}), group = {{var}}))+
+    geom_line(linewidth = 1.3)+
+    geom_point(size = 2, shape = 15, show.legend = F)+
+    geom_line(aes(y = prop_tp, colour = '6'), linewidth = 1.3 )+ ## showing baseline values - fp for no ROPE
+    geom_point(aes(y = prop_tp, colour = '6'), size = 2, shape = 15, show.legend = F)+
+    scale_x_continuous("Sample Size", 
+                       breaks = c(10, 25, 50, 100, 150, 200), 
+                       labels = c("10", "25", "50", "100", "150", "200"))+
     scale_y_continuous("TPR")+
-    scale_color_discrete(name = "Method")+
-    ggtitle("Maximising True Positves across Difference Sample Sizes")
+    scale_color_manual(name = "Method", 
+                       values = MetBrewer::met.brewer(name = "Lakota", type = "discrete", n = 6), 
+                       labels = c("Baseline", "ROI Control", "Pre-stimulus", "0.1 Units", "0.2 Units", "0.3 Units"),
+                       guide = guide_legend(override.aes = list(linewidth = 3)))+
+    ggtitle("True Positves - Different ROPEs")+
+    theme_project_light(base_size = 12)
 
-  g3 <- df |>
-    filter(n_trial != 10) |>
-    ggplot(aes(n_trial, 100*rel_tp, colour = as.factor(rope), group = rope))+
-    geom_line()+
-    geom_point()+
-    geom_line(aes(y = 100*rel_tp/rel_tp), colour = "black")+ ## showing baseline values - fp for no ROPE
-    geom_point(aes(y = 100*rel_tp/rel_tp), colour = "black")+
-    scale_x_continuous("Sample Size")+
-    scale_y_log10("Percentage of TP Relative to No-ROPE (%)")+
-    scale_color_discrete(name = "Method")+
-    ggtitle("Maximising True Positves across Difference Sample Sizes")
-
-  g4 <- df |>
-    filter(n_trial != 10) |>
-    ggplot(aes(n_trial, 100*rel_tp, colour = as.factor(rope), group = rope))+
-    geom_line()+
-    geom_point()+
-    geom_line(aes(y = 100*rel_tp/rel_tp), colour = "black")+ ## showing baseline values - fp for no ROPE
-    geom_point(aes(y = 100*rel_tp/rel_tp), colour = "black")+
-    scale_x_continuous("Sample Size")+
-    scale_y_continuous("Percentage of TP Relative to No-ROPE (%)")+
-    scale_color_discrete(name = "Method")+
-    ggtitle("Maximising True Positves across Difference Sample Sizes")
+  # g3 <- df |>
+  #   ggplot(aes(n_trial, 100*rel_tp, colour = as.factor({{ var }}), group = {{var}}))+
+  #   geom_line()+
+  #   geom_point()+
+  #   geom_line(aes(y = 100*rel_tp/rel_tp), colour = "black")+ ## showing baseline values - fp for no ROPE
+  #   geom_point(aes(y = 100*rel_tp/rel_tp), colour = "black")+
+  #   scale_x_continuous("Sample Size")+
+  #   scale_y_log10("Percentage of TP Relative to No-ROPE (%)")+
+  #   scale_color_discrete(name = "Method")+
+  #   ggtitle("Maximising True Positves across Difference Sample Sizes")
+  # 
+  # g4 <- df |>
+  #   ggplot(aes(n_trial, 100*rel_tp, colour = as.factor({{ var }}), group = {{var}}))+
+  #   geom_line()+
+  #   geom_point()+
+  #   geom_line(aes(y = 100*rel_tp/rel_tp), colour = "black")+ ## showing baseline values - fp for no ROPE
+  #   geom_point(aes(y = 100*rel_tp/rel_tp), colour = "black")+
+  #   scale_x_continuous("Sample Size")+
+  #   scale_y_continuous("Percentage of TP Relative to No-ROPE (%)")+
+  #   scale_color_discrete(name = "Method")+
+  #   ggtitle("Maximising True Positves across Difference Sample Sizes")
   
-  return(print(list(g1,g2, g3, g4)))
+  return(print(list(g1,g2)))
   
 }
 
@@ -220,7 +238,6 @@ plot_base <- function(df){
     geom_hline(yintercept = 0, colour = grey)+
     facet_wrap(~n_trial, scale = "free_y")+
     scale_x_continuous("Time (ms)")+
-    scale_y_continuous("")+
     # MetBrewer::scale_color_met_c(name = "Java")+
     labs(title = "ERP Values of Three Conditions, at Various Sample Sizes", 
          colour = "Condition")+

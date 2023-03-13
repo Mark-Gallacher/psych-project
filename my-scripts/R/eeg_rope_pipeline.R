@@ -339,7 +339,7 @@ eval_rope <- function(df, rope_df, alpha, effect_time_vector){
     )
   
   output <- eval_rope_df |> 
-    dplyr::inner_join(baseline_df, by = "n_trial") |> 
+    dplyr::inner_join(baseline_df, by = c("n_trial", "experiment")) |> 
     dplyr::mutate(
       rel_fp = fp/sum_fp,  # relative FP proportion to baseline (% of FP that were not prevented)
       rel_tp = tp/sum_tp  # relative TP proportion to baseline (% of TP that were not prevented)

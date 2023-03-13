@@ -32,7 +32,8 @@ It is very likely, in the current state, this notebook will inadequately present
 
 
 ```{r}
-cores <- makeCluster(parallel::detectCores() - 2)
+no_cores <- parallel::detectCores() - 2
+cores <- makeCluster(no_cores)
 
 # RcppParallel::setThreadOptions(numThreads = cores)
 doParallel::registerDoParallel(cores = cores)
@@ -49,13 +50,38 @@ n_warmup <- 2000
 ```
 
 ```{r}
+n = 50
+mean_diff = 0
+ 
+dat <- dplyr::tibble(
+    x = c(rnorm(n), rnorm(n, mean_diff)), 
+    y = rep(c("A", "B"), each = n))
+
+ test_model <- brms::brm(
+    brms::bf(x ~ 0 + y), 
+    data = dat, 
+    family = "student", 
+    prior = pr_list[[2]], 
+    chains = n_chains,
+    iter = n_iter, 
+    warmup = n_warmup, 
+    threads = no_cores, 
+    cores = n_chains
+    )
+ 
+ prior_summary(test_model)
+ 
+```
+
+
+```{r}
 get_posterior <- function(sample_size, prior, mean_diff = 0, n_chains = 4, n_iter = 4000, n_warmup = 1000, cores = 1){ 
 
 models <- foreach::foreach(n = sample_size) %dopar% {
 
 # creating data using normal distribution
 
-set.seed(1)
+# set.seed(1)
  dat <- dplyr::tibble(
     x = c(rnorm(n), rnorm(n, mean_diff)), 
     y = rep(c("A", "B"), each = n))
@@ -97,11 +123,13 @@ plot_posterior <- function(df, hdi.df, null = T){
   if(null){
     subtitle <- "Real Mean Difference of 0"
     true_value <-  0
-    x_limits <- c(-.7, .7)
+    x_limits <- c(-1.2, NA)
+    x_breaks <- c(-1, 0, 1)
   }else{
     subtitle <- "Real Mean Difference of 1"
     true_value <-  1
     x_limits <- c(NA, 1.5)
+    x_breaks <- waiver()
   }
   
   text_df <- tibble(
@@ -113,7 +141,7 @@ plot_posterior <- function(df, hdi.df, null = T){
   df |> 
   ggplot(aes(diff))+
   geom_density(aes(fill = prior), alpha = .6, show.legend = T, trim = T, colour = NA)+
-  scale_x_continuous("Mean Difference", breaks = waiver(), limits = x_limits)+
+  scale_x_continuous("Mean Difference", breaks = x_breaks, limits = x_limits)+
   scale_y_continuous("", breaks = NULL, limits = c(0, NA))+
   facet_wrap(n ~ prior, scales = "fixed", ncol = 3, labeller = as_labeller(
     c(
@@ -143,7 +171,10 @@ plot_posterior <- function(df, hdi.df, null = T){
   guides(colour = "none")+
   labs(title = "Parameter Estimation Across Different Sample Sizes", 
        subtitle = subtitle)+
-  geom_text(data = text_df, aes(x = -Inf, y = 1, label = paste("N =", n)), hjust = 0, vjust = -3.5, fontface = "bold")+
+  geom_text(data = text_df, 
+            aes(x = -Inf, y = 1, label = paste("N =", n)), 
+            hjust = 0, vjust = -3.5, 
+            fontface = "bold", size = 5)+
   theme_project_light(base_size = base_size)+
   theme(strip.text = element_text(face = "bold"))
 }
@@ -154,7 +185,7 @@ plot_posterior <- function(df, hdi.df, null = T){
 
 ```{r}
 p1 <- set_prior("normal(0, .5)")
-p2 <- set_prior("uniform(-5, 5)")
+p2 <- set_prior("uniform(-5, 5)", lb = -5, ub = 5)
 p3 <- set_prior("normal(1, .5)")
 ```
 ### Simulating Bayesian Parameter Estimation when NULL is TRUE
@@ -172,7 +203,7 @@ for(i in 1:length(pr_list)){
      n_chains = 4, 
      n_iter = n_iter, 
      n_warmup = n_warmup, 
-     cores = cores
+     cores = no_cores
     )
   
 }

@@ -320,3 +320,216 @@ ggsave(filename = here::here("images", "ch1", "dyn_crit_fake.png"), plot = dyn_c
 #   geom_point()+
 #   scale_x_log10()
 #   scale_x_log10()
+
+
+
+my_power.t.test <- function (
+    n = NULL, 
+    delta = NULL, 
+    sd = 1, 
+    sig.level = 0.05, 
+    power = NULL,
+    type = c("two.sample", "one.sample", "paired"),
+    alternative = c("two.sided", "one.sided"), 
+    strict = FALSE, 
+    null_ncp = 0, 
+    tol = .Machine$double.eps^0.25)
+{
+  if (sum(vapply(list(n, delta, sd, power, sig.level), is.null,
+                 NA)) != 1)
+    stop("exactly one of 'n', 'delta', 'sd', 'power', and 'sig.level' must be NULL")
+  # assert_NULL_or_prob(sig.level)
+  # assert_NULL_or_prob(power)
+  type <- match.arg(type)
+  alternative <- match.arg(alternative)
+  tsample <- switch(type, one.sample = 1, two.sample = 2, paired = 1)
+  force(tsample)
+  tside <- switch(alternative, one.sided = 1, two.sided = 2)
+  if (tside == 2 && !is.null(delta))
+    delta <- abs(delta)
+  p.body <- if (strict && tside == 2)
+    quote({
+      nu <- pmax(1e-07, n - 1) * tsample
+      qu <- qt(sig.level/tside, ncp = sqrt(n/tsample) * null_ncp/sd, nu, lower.tail = FALSE)
+      pt(qu, nu, ncp = sqrt(n/tsample) * delta/sd, lower.tail = FALSE) +
+        pt(-qu, nu, ncp = sqrt(n/tsample) * delta/sd,
+           lower.tail = TRUE)
+    })
+  else quote({
+    nu <- pmax(1e-07, n - 1) * tsample
+    pt(qt(sig.level/tside, nu, lower.tail = FALSE), nu, ncp = sqrt(n/tsample) *
+         delta/sd, lower.tail = FALSE)
+  })
+  if (is.null(power))
+    power <- eval(p.body)
+  else if (is.null(n))
+    n <- uniroot(function(n) eval(p.body) - power, c(2, 1e+07),
+                 tol = tol, extendInt = "upX")$root
+  else if (is.null(sd))
+    sd <- uniroot(function(sd) eval(p.body) - power, delta *
+                    c(1e-07, 1e+07), tol = tol, extendInt = "downX")$root
+  else if (is.null(delta))
+    delta <- uniroot(function(delta) eval(p.body) - power,
+                     sd * c(1e-07, 1e+07), tol = tol, extendInt = "upX")$root
+  else if (is.null(sig.level))
+    sig.level <- uniroot(function(sig.level) eval(p.body) - power, 
+                          interval = c(1e-10, 1 - 1e-10), 
+                          tol = tol, extendInt = "yes")$root
+  else stop("internal error", domain = NA)
+  NOTE <- switch(type, paired = "n is number of *pairs*, sd is std.dev. of *differences* within pairs",
+                 two.sample = "n is number in *each* group", NULL)
+  METHOD <- paste(switch(type, one.sample = "One-sample", two.sample = "Two-sample",
+                         paired = "Paired"), "t test power calculation")
+  structure(list(n = n, delta = delta, sd = sd, sig.level = sig.level,
+                 power = power, alternative = alternative, note = NOTE,
+                 method = METHOD), class = "power.htest")
+}
+
+library(tidyverse)
+library(pwr)
+library(parallel)
+library(doParallel)
+
+doParallel::registerDoParallel(cores = parallel::detectCores() - 2)
+
+sample_size <- c(c(2:19), seq(20, 1000, 10), seq(1100, 100000, 100), seq(101000, 10000000, 1000))
+effect_sizes <-  c(0.1, 0.2, 0.3, 0.4, .5)
+null_ncp <- seq(0, .5, .1)
+alpha <-  0.05
+crit_eff <- list()
+
+
+
+for(ncp in 1:length(null_ncp)){
+
+crit_eff[[ncp]] <- foreach::foreach(s = 1:length(sample_size), .combine = "c")%dopar%{
+  my_power.t.test(n = sample_size[[s]], 
+                  delta = NULL, 
+                  sd = 1, 
+                  sig.level = alpha, 
+                  power = 0.8, 
+                  type = "two.sample", 
+                  alternative = "two.sided",
+                  strict = TRUE, 
+                  null_ncp = null_ncp[[ncp]])$delta
+}
+  
+}
+
+df <- tibble(
+  sample = rep(sample_size, times = length(null_ncp)),
+  ncp = rep(null_ncp, each = length(sample_size)),
+  crit_eff = crit_eff |> unlist()
+)
+
+
+df |> 
+  ggplot(aes(x = sample, y = crit_eff, colour = ncp, group = ncp))+
+  geom_line(size = 1)+
+  scale_x_log10()+
+  scale_y_continuous(limits = c(0, 2))+
+  geom_hline(aes(yintercept= ncp), alpha = .5)+
+  theme_minimal()
+
+custom <- function(x, df = 2, ncp = 0) {dt(x = x, df = df, ncp = ncp)}
+
+
+ggplot(data.frame(x = c(-4, 10)), aes(x = x)) +
+  stat_function(fun = custom) +
+  stat_function(fun = custom, args = list(df = 5)) +
+  stat_function(fun = custom, args = list(df = 8)) +
+  stat_function(fun = custom, args = list(df = 10)) +
+  stat_function(fun = custom, args = list(df = 15)) +
+  stat_function(fun = custom, args = list(df = 20)) +
+  geom_vline(xintercept = optimise(f = custom, interval = c(0, 10), maximum = T)$maximum)+
+  theme_minimal()
+
+ggplot(data.frame(x = c(-4, 10)), aes(x = x)) +
+  stat_function(fun = custom, args = list(df = 100)) +
+  stat_function(fun = custom, args = list(df = 100, ncp = 1)) +
+  stat_function(fun = custom, args = list(df = 100, ncp = 2)) +
+  stat_function(fun = custom, args = list(df = 100, ncp = 3)) +
+  stat_function(fun = custom, args = list(df = 100, ncp = 4)) +
+  stat_function(fun = custom, args = list(df = 100, ncp = 5)) +
+  # geom_vline(xintercept = optimise(f = custom, interval = c(0, 10), maximum = T)$maximum)+
+  theme_minimal()
+
+x = seq(-5, 25, 0.01)
+degs = c(2, 5, 8, 10, 15, 20, 100, 1000)
+ncps = seq(0, .5, .1)
+
+
+t_df <- expand.grid(x, degs, ncps) |> 
+  as_tibble(.name_repair = ~c("x", "deg", "ncp")) |> 
+  mutate(
+    prob = custom(x = x, df = deg, ncp = sqrt(deg/2) * ncp),
+    crit = qt(p = 0.9725, df = deg, ncp = sqrt(deg/2) * ncp)
+    )
+
+
+t_df |> 
+  filter(prob > 0.0001) |> 
+  ggplot(aes(x = x, y = prob, colour = ncp, group = ncp))+
+  geom_line(size = 1.2, alpha = .7)+
+  geom_vline(aes(xintercept = crit, colour = ncp))+
+  facet_wrap(~deg, scales = "free")+
+  theme_minimal()
+
+t_df |> 
+  filter(ncp == 0) |> 
+  ggplot(aes(x = x, y = prob, colour = deg, group = deg))+
+  geom_line(size = .7, alpha = 1)+
+  geom_vline(aes(xintercept = crit, colour = deg))+
+  theme_minimal()
+
+
+n_size <- 50
+min_eff <- 0.3
+
+t_value <- qt(1 - (0.05 /2), df = n_size - 2, ncp = sqrt(n_size / 2) * min_eff, lower.tail = T)
+2*pt(t_value, df = n_size - 2, ncp = sqrt(n_size / 2) * min_eff, lower.tail = F)
+
+2*pt(t_value, df = n_size - 2, ncp = 0, lower.tail = F)
+
+
+reps <- 100
+
+samples <- rep(c(c(2, 3, 5, 7, 9, seq(10, 200, 5))), times = reps)
+diffs <- seq(0, -1, -0.1)
+margins <- seq(0, 1, .1)
+
+p_values <- list()
+
+
+for(m in 1:length(margins)){
+  for (d in 1:length(diffs)){
+    i <- (length(diff) * (m - 1)) + d
+    
+    p_values[[i]] <- foreach::foreach(s = 1:length(samples))%dopar%{
+        t.test(x = rnorm(samples[[s]], 0, 1),
+                y = rnorm(samples[[s]], diffs[[d]], 1),
+                alternative = "two.sided",
+                var.equal = F,
+                mu = margins[[m]])$p.value
+    }
+  }
+}
+
+
+p_df <- expand.grid(samples, diffs, margins) |> 
+  as_tibble(.name_repair = ~ c("sample", "diff", "margin")) |> 
+  mutate(
+  p = p_values |> unlist() |>  as.vector()
+) |> 
+  group_by(sample, margin, diff) |> 
+  mutate(
+    fp = sum(p < 0.05)/n(), 
+    n = n()) 
+
+p_df |> 
+  ggplot(aes(x = sample, y = fp, colour = diff, group = diff))+
+  geom_line(size = .7, alpha = 1)+
+  theme_minimal()+
+  facet_wrap(~margin)
+
+

@@ -61,6 +61,7 @@ eeg_pipeline_attr <- list(
 
 seeds <- 1:1000
 
+##### ROPE ######
 ## With an underlying effect
 large_sim_test_1 <- foreach::foreach(s = 1:length(seeds), .combine = "rbind") %dopar%{
 
@@ -90,43 +91,65 @@ large_sim_rope_df <- large_sim_df_1 |>
       )
 
 l_sim_rope_df <- bind_rows(large_sim_rope_df, .id = "set")
-# large_sim_test_1
 
 l_sim_rope_eval_df <- eval_rope(df = large_sim_test_1, 
           rope_df = l_sim_rope_df, 
           alpha = 0.05, 
           effect_time_vector = effect_time)
 
-### ROPE df
-write_csv(x = l_sim_rope_df, file = here::here("sim_data/ch4_eeg_sims/large_sim_rope_df.csv"))
+# ### ROPE df
+# write_csv(x = l_sim_rope_df, file = here::here("sim_data/ch4_eeg_sims/large_sim_rope_df.csv"))
+# 
+# ## df for mean values
+# write_csv(x = large_sim_test_1, file = here::here("sim_data/ch4_eeg_sims/large_sim_data_df.csv"))
+# 
+# ## df for rope eval
+# write_csv(x = l_sim_rope_eval_df, file = here::here("sim_data/ch4_eeg_sims/large_sim_rope_eval_df.csv"))
 
-## df for mean values
-write_csv(x = large_sim_test_1, file = here::here("sim_data/ch4_eeg_sims/large_sim_data_df.csv"))
+##### Dynamic Alpha #####
 
-## df for rope eval
-write_csv(x = l_sim_rope_eval_df, file = here::here("sim_data/ch4_eeg_sims/large_sim_rope_eval_df.csv"))
+large_sim_test_1 <- read_csv(file = here::here("sim_data/ch4_eeg_sims/large_sim_data_df.csv"))
+l_sim_rope_df <- read_csv(file = here::here("sim_data/ch4_eeg_sims/large_sim_rope_df.csv"))
+
+large_sim_df_1 <- large_sim_test_1 |> 
+  group_nest(set, .key = "studies")
+
+## min alpha beta rule
+large_sim_min_df <- large_sim_df_1 |> 
+  map(.x = large_sim_df_1$studies, .f = ~ .x |> 
+        get_new_alpha(method = "min.ab")
+  )
+
+## min alpha beta rule
+large_sim_adapt_df <- large_sim_df_1 |> 
+  map(.x = large_sim_df_1$studies, .f = ~ .x |> 
+        get_new_alpha(method = "adapt.a")
+  )
+
+## binding output and making sure set is a numeric for future inner join
+l_sim_min_df <- bind_rows(large_sim_min_df, .id = "set") |> 
+  mutate(set = as.integer(set))
+
+l_sim_adapt_df <- bind_rows(large_sim_adapt_df, .id = "set") |> 
+  mutate(set = as.integer(set))
 
 
-# ## when there is no effect
-# sim_test_2 <- foreach::foreach(s = 1:length(seeds), .combine = "rbind") %dopar%{
-#   
-#   sim_df_2 <- sim_eeg_rope_pipeline(
-#     sample_size = sample_size, 
-#     alpha = alpha, 
-#     num_time_points = Nf, 
-#     max_time = max_time, 
-#     cond1_base = temp1, 
-#     cond2_base = temp1, 
-#     gamma_spec_power = gsp, 
-#     noise_var = outvar,      
-#     stim_onset = stim_on, 
-#     seed = seeds[s], 
-#     static_margin = static_margins
-#   ) |> 
-#     dplyr::mutate(set = seeds[s]) |> 
-#     dplyr::filter(!is.na(time))
-#   
-# }
+## compare new alpha to p-value, used to plot significant lines
+l_sim_min_eval_df <- large_sim_test_1 |> 
+  select(set, everything()) |> 
+  inner_join(l_sim_min_df, by = c("set", "n_trial")) |> 
+  eval_dyn_alpha()
 
-# write_csv(sim_test_1, here::here("sim_data", "sim_egg_pipeline_eff.csv"))
-# write_csv(sim_test_2, here::here("sim_data", "sim_egg_pipeline_no_eff.csv"))
+l_sim_adapt_eval_df <- large_sim_test_1 |> 
+  select(set, everything()) |> 
+  inner_join(l_sim_adapt_df, by = c("set", "n_trial")) |> 
+  eval_dyn_alpha()
+
+# ### saving df containing new alphas
+# write_csv(x = l_sim_min_df, file = here::here("sim_data/ch4_eeg_sims/large_sim_min_df.csv"))
+# write_csv(x = l_sim_adapt_df, file = here::here("sim_data/ch4_eeg_sims/large_sim_adapt_df.csv"))
+# 
+# 
+# ## df for rope eval
+# write_csv(x = l_sim_min_eval_df, file = here::here("sim_data/ch4_eeg_sims/large_sim_min_eval_df.csv"))
+# write_csv(x = l_sim_adapt_eval_df, file = here::here("sim_data/ch4_eeg_sims/large_sim_adapt_eval_df.csv"))
