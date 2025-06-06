@@ -55,7 +55,7 @@ get_sig_lines <- function(df, dyn_df){
   
   output <- df |> 
     pivot_for_stats(replication = T) |> 
-    inner_join(dyn_df, by =  n_trial ) |> 
+    inner_join(dyn_df, by = "n_trial") |> 
     mutate(
       sig_rule1 = if_else(p < new_alpha, 0, NA),
       sig_rule2 = if_else(p < new_alpha_2, 0, NA)
@@ -104,7 +104,8 @@ eval_dyn_alpha <- function(df){
   # Checking for Significance
   p_cond <- expression(p_13 < new_alpha)
   p_cond_2 <- expression(p_13 < new_alpha_2)
-  p_cond_base <- expression(p_13 < 0.05)
+  p_cond_r <- expression(p_13 < 0.05)
+  p_cond_b <- expression(p_13 < (0.05/length(unique(df$time))))
   
   # Time outside of an effect
   time_cond <- expression((time < effect_time[1] | time > effect_time[2]))
@@ -122,10 +123,16 @@ eval_dyn_alpha <- function(df){
   tn_cond_2 <- expression(!eval(p_cond_2) & eval(time_cond))
   
   ## cond for the base rates
-  fp_cond_base <- expression(eval(p_cond_base) & eval(time_cond))
-  tp_cond_base <- expression(eval(p_cond_base) & !eval(time_cond))
-  fn_cond_base <- expression(!eval(p_cond_base) & !eval(time_cond))
-  tn_cond_base <- expression(!eval(p_cond_base) & eval(time_cond))
+  fp_cond_r <- expression(eval(p_cond_r) & eval(time_cond))
+  tp_cond_r <- expression(eval(p_cond_r) & !eval(time_cond))
+  fn_cond_r <- expression(!eval(p_cond_r) & !eval(time_cond))
+  tn_cond_r <- expression(!eval(p_cond_r) & eval(time_cond))
+  
+  ## cond for the base rates
+  fp_cond_b <- expression(eval(p_cond_b) & eval(time_cond))
+  tp_cond_b <- expression(eval(p_cond_b) & !eval(time_cond))
+  fn_cond_b <- expression(!eval(p_cond_b) & !eval(time_cond))
+  tn_cond_b <- expression(!eval(p_cond_b) & eval(time_cond))
   
   # creating a df to find fpr and fnr, to evaluate different ropes
   eval_rope_df <- df |>  
@@ -141,15 +148,21 @@ eval_dyn_alpha <- function(df){
       tp_2 = dplyr::if_else(eval(tp_cond_2), 1, 0),
       fn_2 = dplyr::if_else(eval(fn_cond_2), 1, 0),
       tn_2 = dplyr::if_else(eval(tn_cond_2), 1, 0),
-      ## base rate
-      fp_b = dplyr::if_else(eval(fp_cond_base), 1, 0),
-      tp_b = dplyr::if_else(eval(tp_cond_base), 1, 0),
-      fn_b = dplyr::if_else(eval(fn_cond_base), 1, 0),
-      tn_b = dplyr::if_else(eval(tn_cond_base), 1, 0),
+      ## base rate - raw p-value
+      fp_r = dplyr::if_else(eval(fp_cond_r), 1, 0),
+      tp_r = dplyr::if_else(eval(tp_cond_r), 1, 0),
+      fn_r = dplyr::if_else(eval(fn_cond_r), 1, 0),
+      tn_r = dplyr::if_else(eval(tn_cond_r), 1, 0),
+      ## base rate - bonferroni
+      fp_b = dplyr::if_else(eval(fp_cond_b), 1, 0),
+      tp_b = dplyr::if_else(eval(tp_cond_b), 1, 0),
+      fn_b = dplyr::if_else(eval(fn_cond_b), 1, 0),
+      tn_b = dplyr::if_else(eval(tn_cond_b), 1, 0),
     ) |> 
     group_by(experiment, n_trial) |> 
     summarise(across(.cols = c(fp, tp, fn, tn, 
                                fp_2, tp_2, fn_2, tn_2,
+                               fp_r, tp_r, fn_r, tn_r,
                                fp_b, tp_b, fn_b, tn_b
                                ), .fns = ~ sum(.x)), .groups = "drop") |> 
     dplyr::mutate(
@@ -163,7 +176,12 @@ eval_dyn_alpha <- function(df){
       tpr_2 = tp_2 / (tp_2 + fn_2),
       fnr_2 = fn_2 / (fn_2 + tp_2),
       tnr_2 = tn_2 / (tn_2 + fp_2),
-      ## for base
+      ## for raw
+      fpr_r = fp_r / (fp_r + tn_r),
+      tpr_r = tp_r / (tp_r + fn_r),
+      fnr_r = fn_r / (fn_r + tp_r),
+      tnr_r = tn_r / (tn_r + fp_r),
+      ## for bonf.
       fpr_b = fp_b / (fp_b + tn_b),
       tpr_b = tp_b / (tp_b + fn_b),
       fnr_b = fn_b / (fn_b + tp_b),
@@ -204,7 +222,7 @@ plot_eval_dyn_alpha <- function(min_df, adapt_df, rate = "fpr"){
   eval_adapt_df$rate <- paste0("adapt_", eval_adapt_df$rate)
   
   eval_dyn_df <- bind_rows(eval_min_df, eval_adapt_df)|> 
-    filter(!grepl("adapt_fpr_b|adapt_tpr_b", rate), experiment == "A")
+    filter(!grepl("adapt_fpr_b|adapt_tpr_b|adapt_fpr_r|adapt_tpr_r", rate), experiment != "A")
   
   p1 <- eval_dyn_df |>
     ggplot(aes(x = n_trial, y = values, group = rate, colour = rate))+
@@ -215,9 +233,9 @@ plot_eval_dyn_alpha <- function(min_df, adapt_df, rate = "fpr"){
                        breaks = c(10, 25, 50, 100, 150, 200), 
                        labels = c("10", "25", "50", "100", "150", "200"))+
     scale_y_log10(stringr::str_to_upper(rate))+
-    scale_color_manual(name = "Method", 
-                       labels = c("Adapt. (1 d)", "Adapt. (0.5 d)", "Min. (1 d)", "Min. (0.5 d)", "Baseline"),
-                       values = MetBrewer::met.brewer(name = "Java"  , type = "discrete", n = 5),
+    scale_color_manual(name = "Method",
+                       labels = c("Adapt. (1 d)", "Adapt. (0.5 d)", "Min. (1 d)", "Min. (0.5 d)", "Bonf.", "Raw"),
+                       values = viridis::viridis(6),
                        guide = guide_legend(override.aes = list(linewidth = 3), nrow = 2))+
     ggtitle(title)
   
@@ -225,15 +243,15 @@ plot_eval_dyn_alpha <- function(min_df, adapt_df, rate = "fpr"){
     ggplot(aes(x = n_trial, y = values, group = rate, colour = rate))+
     geom_point(size = 2, shape = 15, show.legend = F)+
     geom_line(linewidth = 1.3)+
-    geom_hline(yintercept = 0, linewidth = 1)+
+    # geom_hline(yintercept = 0, linewidth = 1)+
     theme_project_light(base_size = base_size)+
     scale_x_continuous("Sample Size", 
                        breaks = c(10, 25, 50, 100, 150, 200), 
                        labels = c("10", "25", "50", "100", "150", "200"))+
     scale_y_continuous(stringr::str_to_upper(rate))+
-    scale_color_manual(name = "Method", 
-                       labels = c("Adapt. (1 d)", "Adapt. (0.5 d)", "Min. (1 d)", "Min. (0.5 d)", "Baseline"),
-                       values = MetBrewer::met.brewer(name = "Java"  , type = "discrete", n = 5),
+    scale_color_manual(name = "Method",
+                       labels = c("Adapt. (1 d)", "Adapt. (0.5 d)", "Min. (1 d)", "Min. (0.5 d)", "Bonf.", "Raw"),
+                       values = viridis::viridis(6),
                        guide = guide_legend(override.aes = list(linewidth = 3), nrow = 2))+
     ggtitle(title)
   

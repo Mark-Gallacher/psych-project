@@ -47,13 +47,13 @@ one_over_f <- function(gamma = 1, N = 200, outvar = 1, seed = 1){
 convert_t_to_raw <- function(df, alpha = 0.05, t_values, null_rope = F){
   raw <- c()
   # number of trials
-  lx <- sqrt(df$n_trial[1])
+  lx <- sqrt(unique(df$n_trial))
   # standard error for each group and combined
-  sdex <- df$sd_cond1[1]/lx
+  sdex <- mean(df$sd_cond1)/lx
   if (null_rope){
-    sdey <- df$sd_cond2[1]/lx
+    sdey <- mean(df$sd_cond2)/lx
   }else{
-    sdey <- df$sd_cond3[1]/lx
+    sdey <- mean(df$sd_cond3)/lx
   }
   se <- sqrt(sdex^2 + sdey^2)
   # df - we need this to find the critical t value
@@ -224,9 +224,9 @@ get_eeg_nu_rope <- function(df, alpha = 0.05, num_time_points, static_margins, r
 
   #### NULL ROPE
   if(replication) {
-    f_pre <- quote(time < 0, experiment == "A")
-    f_nosig <- quote(p_12 > alpha, experiment == "A")
-    f <- quote(!eval(time_cond), experiment == "A")
+    f_pre <- expression(time < 0 & experiment == "A")
+    f_nosig <- expression(p_12 > alpha & experiment == "A")
+    f <- expression(!eval(time_cond) & experiment == "A")
   }
   else{
     f_pre <- quote(time < 0)
@@ -347,7 +347,7 @@ get_eeg_nu_rope <- function(df, alpha = 0.05, num_time_points, static_margins, r
 get_eeg_alter_rope <- function(df, alpha = 0.05, replication = F){
   
   if(replication) {
-    f <- quote(!eval(time_cond), experiment == "A")
+    f <- expression(!eval(time_cond) & experiment == "A")
   }
   else{
     f <- quote(!eval(time_cond))

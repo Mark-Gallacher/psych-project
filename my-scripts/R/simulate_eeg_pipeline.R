@@ -21,7 +21,7 @@ Nf <- length(.Xf)   ## Number of timepoints
 .magnit <- 2
 
 # Generate ERP Peak
-.erp <- dnorm(seq(-1.5, 1.5, length.out= 200/.freq), 0, 1)
+.erp <- dnorm(seq(-1.5, 1.5, length.out = 200/.freq), 0, 1)
 .erp <- .erp - min(.erp)
 .erp_small <- .erp / max(.erp)
 .erp_large <- .magnit*.erp_small
@@ -35,12 +35,11 @@ temp1 <- c(rep(0, .l_pre_stim), .erp_small, rep(0, (Nf - .l_erp - .l_pre_stim)))
 temp2 <- c(rep(0, .l_pre_stim), .erp_large, rep(0, (Nf - .l_erp - .l_pre_stim)))
 
 
-sample_size <-c(10, 25, 50, 100, 150, 200) # number of trials
+sample_size <- c(10, 25, 50, 100, 150, 200) # number of trials
 .gsp <- 1 # gamma spectral power 
 .outvar <- 1 # noise variance
 
 alpha = 0.05 ## Standard Alpha Level for Significance Testing
-seed = 1 # set.seed(1)
 static_margins = c(0.3, 0.2, 0.1) # static margins for NUll ROPE
 
 effect_time <- c(.true_onset - .stim_on, .true_onset + 200 - .freq - .stim_on)
@@ -79,6 +78,8 @@ sim_df_1 <- sim_repli_eeg_pipeline(
 large_sim_df_1 <- large_sim_test_1 |> 
   group_nest(set, .key = "studies")
 
+
+
 large_sim_rope_df <- large_sim_df_1 |> 
   map(.x = large_sim_df_1$studies, .f = ~ .x |> 
         generate_rope_df(pipeline_attr = eeg_pipeline_attr, 
@@ -88,14 +89,17 @@ large_sim_rope_df <- large_sim_df_1 |>
                          sequential = F, 
                          replicate.effect = F, 
                          static_margins = static_margins)
-      )
+      ) 
 
-l_sim_rope_df <- bind_rows(large_sim_rope_df, .id = "set")
+l_sim_rope_df <- bind_rows(large_sim_rope_df, .id = "set")|> 
+  filter(experiment == "B", comparison == 13)
 
-l_sim_rope_eval_df <- eval_rope(df = large_sim_test_1, 
+l_sim_rope_eval_df <- eval_rope(
+          df = large_sim_test_1 |> filter(experiment == "B"), 
           rope_df = l_sim_rope_df, 
           alpha = 0.05, 
-          effect_time_vector = effect_time)
+          effect_time_vector = effect_time) |> 
+  select(!starts_with("sum"), -c(fp, tp, fn, tn))
 
 # ### ROPE df
 # write_csv(x = l_sim_rope_df, file = here::here("sim_data/ch4_eeg_sims/large_sim_rope_df.csv"))
@@ -138,12 +142,15 @@ l_sim_adapt_df <- bind_rows(large_sim_adapt_df, .id = "set") |>
 l_sim_min_eval_df <- large_sim_test_1 |> 
   select(set, everything()) |> 
   inner_join(l_sim_min_df, by = c("set", "n_trial")) |> 
-  eval_dyn_alpha()
+  eval_dyn_alpha() |> 
+  select(-c(fp, tp, fn, tn))
 
 l_sim_adapt_eval_df <- large_sim_test_1 |> 
   select(set, everything()) |> 
   inner_join(l_sim_adapt_df, by = c("set", "n_trial")) |> 
-  eval_dyn_alpha()
+  eval_dyn_alpha()|> 
+  select(-c(fp, tp, fn, tn))
+
 
 # ### saving df containing new alphas
 # write_csv(x = l_sim_min_df, file = here::here("sim_data/ch4_eeg_sims/large_sim_min_df.csv"))

@@ -20,29 +20,29 @@ rope_margin = .25
 
 df |> 
   ggplot(aes(x = mean, y = y))+
-  geom_point()+
-  geom_errorbar(aes(xmin = l_ci, xmax = u_ci), linewidth = 1, width = .15)+
+  geom_point(size = 4)+
+  geom_errorbar(aes(xmin = l_ci, xmax = u_ci), linewidth = 2, width = .15)+
   scale_x_continuous("", breaks = NULL, limits = c(-.5, 1.5))+
   scale_y_continuous("", breaks = NULL)+
-  theme_project_light(base_size = 13)+
+  theme_project_light(base_size = 15)+
   geom_segment(aes(x = 0, 
                    xend = 0, 
                    y = 0.6, 
                    yend = 1.1*length(mean)), 
                colour = "grey30", 
-               linewidth = 1)+
+               linewidth = 1.5)+
   annotate(geom = "text", 
            x = -0.5, 
            y = df$y, 
            label = rev(c("A", "B", "C", "D")),
            hjust = 0.5, 
-           size = 5)+
+           size = 10)+
   annotate(geom = "text", 
            x = c(0,-rope_margin, rope_margin, 0), 
            y = c(4.5, 4.5, 4.5, 0.5), 
            label = c(0,"-m", "+m", "Equivalence Region"),
            hjust = 0.5, 
-           size = c(5, 5, 5, 6), 
+           size = 10, 
            colour = c("grey30","grey30","grey30", "#000000"), 
            fontface = c('bold', 'italic', 'italic', 'bold'))+
   annotate(geom = "rect", 
@@ -54,6 +54,6 @@ df |>
            alpha = .3)+
   labs(title = "Using an Equivalence Region to Redefine Significance")
 
-ggsave(filename = here::here("images", "ch1-equivalence.png"), dpi = 360, width = 10, height = 8)
+ggsave(filename = here::here("images/ch1", "equivalence.png"), dpi = 360, width = 10, height = 8)
 
 

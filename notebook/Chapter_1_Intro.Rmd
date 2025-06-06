@@ -28,9 +28,8 @@ source(here::here("other-scripts", "optim_equiv_func.R"))
 source(here::here("my-scripts", "R", "pwr_calc_functions.R"))  
 
 source(here::here("my-scripts", "R", "project_themes.R"))
-
-base_size = 13 # so graphs are the same size
 ```
+
 # Chapter 1 - How Power and Effect relate to a *Static* alpha level, for a given Sample Size
 
 ### Setting up the parametres for Power Calculation
@@ -55,6 +54,34 @@ alpha <- 0.05
 many_alpha <- c(1 %o% 10^(-1:-5))
 l_many_alpha <- length(many_alpha)
 ```
+```{r User-Defined Function}
+alpha_legend <- function(plot){
+  
+  plot + 
+      scale_color_manual(bquote(alpha), 
+                     values = MetBrewer::met.brewer(name = "Troy", n = 5), 
+                     guide = guide_legend(title.vjust = .5, 
+                                          override.aes = list(linewidth = 3, size = 0, alpha = 1, shape = 0, fill = NA)), 
+                     breaks = many_alpha,
+                     labels = c("0.1", "0.01", "0.001", "0.0001", "0.00001")
+                       )
+}
+
+power_legend <- function(plot){
+  
+  plot + 
+      scale_color_manual("Power", 
+                     values = MetBrewer::met.brewer(name = "Troy", n = 5), 
+                     guide = guide_legend(title.vjust = .5, 
+                                          override.aes = list(linewidth = 3, size = 0, alpha = 1, shape = 0, fill = NA)), 
+                     breaks = many_power,
+                     labels = many_power
+                       )
+}
+
+base_size = 16 # so graphs are the same size
+```
+
 
 #### Displaying Output for Clarity
 
@@ -115,18 +142,18 @@ knitr::kable(x = head(es_by_pwr_df, n = 10))
 
 ```{r}
 eff_power_g1 <- es_by_pwr_df |> 
-  ggplot(aes(x = n, y = effect_size, colour = as.numeric(power), group = power))+
+  ggplot(aes(x = n, y = effect_size, colour = power, group = power))+
   geom_line(alpha = 0.8, size = 1.5)+
   scale_x_log10(name = "Sample Size")+
   scale_y_continuous(name = "Cohen's d")+
-  guides(colour = guide_colourbar(title = "Power", barwidth = 10, barheight = .8, title.vjust = 1))+
   ggtitle("Critical Effect Size vs Sample Size at Different Powers")+
-  theme_project_light(base_size = base_size)+
+  theme_project_light(base_size = 16)+
   theme(panel.grid.major.y = element_line())
 
-eff_power_g1
+eff_power_g1 <- eff_power_g1 |> 
+  power_legend()
 
-ggsave(plot = eff_power_g1, filename = "ch1_crit_eff_power.png", path = here::here("images"), dpi = 320, width = 10, height = 8)
+ggsave(plot = eff_power_g1, filename = "crit_eff_power.png", path = here::here("images/ch1"), dpi = 320, width = 10, height = 8)
 ```
 
 ---
@@ -154,25 +181,23 @@ es_by_alpha_df <- tibble(
   n = rep(sample_size, each = l_many_alpha),
   crit_eff = output
 )
+```
 
 
-es_by_alpha_df |> 
-  ggplot(aes(x = n, y = crit_eff, colour = as.numeric(alpha), group = as.numeric(alpha)))+
+```{r}
+eff_alpha_g1 <- es_by_alpha_df |> 
+  ggplot(aes(x = n, y = crit_eff, colour = as.factor(alpha), group = alpha))+
   geom_line(alpha = 0.8, size = 1.5)+
   scale_x_log10(name = "Sample Size")+
   scale_y_continuous(name = "Cohen's d", limits = c(0, 4))+
-  scale_color_gradient(name = bquote(alpha), 
-                       high = "#132B43", 
-                       low = "#56B1F7",
-                       trans = "log10", 
-                       breaks = c(0.1, .001, 0.00001), 
-                       labels = c("0.1", "0.001", "0.00001"),
-                       guide = guide_colourbar(barwidth = 15, barheight = .8, title.vjust = 1))+
   ggtitle("Critical Effect Size vs Sample Size At Various Alpha Levels")+
   theme_project_light(base_size = base_size)+
   theme(panel.grid.major.y = element_line())
 
-ggsave(filename = "ch1_crit_eff_alpha.png", path = here::here("images"), dpi = 320, width = 10, height = 8)
+eff_alpha_g1 <- eff_alpha_g1 |> 
+  alpha_legend()
+
+ggsave(plot = eff_alpha_g1, filename = "crit_eff_alpha.png", path = here::here("images/ch1"), dpi = 320, width = 10, height = 8)
 ```
 
 

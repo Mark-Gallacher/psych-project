@@ -387,7 +387,7 @@ dyn_stats_1 <- rep_df_1 |>
 .rep_dyn_p1 <- .rep_p1[[1]] |> ## use the rep_p1 plot as a base, then add the new sig lines over it
   plot_dyn_alpha(dyn_df = dyn_stats_1, base_size = 12, method = "min.ab")
 
-.rep_dyn_p1[[1]]
+.rep_dyn_p1
 ```
 
 ### Dynamic Alpha Rule - Adaptive Alpha Formula
@@ -466,7 +466,7 @@ rep_bf_1 <- sim_repli_eeg_pipeline(eeg_pipeline_attr, seed = seed, total_experim
 # Code to save each graph in ch4
 sim_plots <- c("sim1_" = .sim_1, "sim2_" = .sim_2, "sim1a_" = .sim_1a, "sim2a_" = .sim_2a)
 rep_plots <- c("rep1_"= .rep_1, "rep2_"= .rep_2, "rep1a_"= .rep_1a,"rep2a_"= .rep_2a)
-dyn_plots <- c("rep_dyn1" = list(.rep_dyn_p1), "rep_dyn2" = list(.rep_dyn2_p1))
+dyn_plots <- c("rep_dyn1" = list(.rep_dyn_p1[[1]]), "rep_dyn2" = list(.rep_dyn_p2[[1]]))
 # bf_plots <- c("sim_bf1" = list(.bf_p1), "rep_bf1" = list(.rep_bf_p1))
 
 save_plots <- function(plots, chapter.no = NULL, is.rope = T){
@@ -529,7 +529,7 @@ The use of a ROPE should reduce the number of false positives, as if the Confide
 
 It is probably worth replicating this pipeline (the above process) several times to assess behaviour in the long run - as consistency is difficult to assess from a few trials. These following graphs are influenced by randomness, as the noise is randomly generated, so repeating this pipeline should reduce this unwanted influence.
 
-```{r, collapse=F, message=F, eval = F}
+```{r, collapse=F, message=F}
 seeds = 1:1000 # the seeds that were used in the 1000 repetitions of the Pipeline
 
 ## Reading the Pipeline Simulations - 1000 repetitions
@@ -550,12 +550,12 @@ sim_rope_2 <- read_csv(here::here("sim_data","ch4_eeg_sims", "sim_egg_pipeline_n
 source(here::here("my-scripts", "R", "eeg_rope_graphs.R"))
 ```
 
-```{r, warning=F,eval = F}
+```{r, warning=F}
 .eval_rope_g1 <- eval_rope_1 |> 
   filter(!rope %in% c("controlt", "nonsig")) |> 
   fp_graphs(effect = T, var = rope)
 
-# ggsave(plot = .eval_rope_g1[[2]], file = here::here("images/ch5", "fp_ropes.png"), width = 13, height = 10, dpi = 360)
+# ggsave(plot = .eval_rope_g1[[1]], file = here::here("images/ch5", "fp_ropes.png"), width = 13, height = 10, dpi = 360)
 ```
 
 ```{r,  eval = F, include=F}
@@ -593,7 +593,7 @@ Raw p-values are going to generate false positives, which is expected after doin
 
 Whilst minimising False positives is desirable, we can achieve a false positive rate of zero by sacrificing our ability to detect meaningful statistical differences. This is the classic issue of Sensitivity vs Specificity. For example, if we set the margins of a ROPE to -10 and +10, we would have no False Positive because every value is inside that ROPE, so we would have no True positives.
 
-```{r, eval = F}
+```{r}
 .eval_rope_g3 <- eval_rope_1 |> 
     filter(!rope %in% c("controlt", "nonsig")) |> 
     tp_graphs(var = rope)
@@ -651,13 +651,13 @@ dyn_alpha_p2
 ```{r, fig.height=10, fig.width=13}
 library(gridExtra)
 
-grid.arrange(.eval_rope_g1[[1]] + labs(tag = "A"), 
+grid_p1 <- grid.arrange(.eval_rope_g1[[1]] + labs(tag = "A"), 
              .eval_rope_g3[[2]] + labs(tag = "B"), 
              dyn_alpha_p1[[2]] + labs(tag = "C"), 
              dyn_alpha_p2[[2]] + labs(tag = "D"), 
              nrow = 2)
 
-# ggsave(file = here::here("images/ch5", "fp_tp_grid.png"), width = 13, height = 10, dpi = 360)
+# ggsave(plot = grid_p1, file = here::here("images/ch5", "fp_tp_grid.png"), width = 13, height = 10, dpi = 360)
 ```
 
 

@@ -4,6 +4,20 @@ library(Rmpfr)
 
 options(digits = 7)
 
+effect_legend <- function(plot){
+  
+  plot + 
+    scale_color_manual("Predicted Effect Size", 
+                       values = MetBrewer::met.brewer(name = "Troy", n = length(effect_sizes), type = "continuous"), 
+                       guide = guide_legend(title.vjust = .5, 
+                                            override.aes = list(linewidth = 3, size = 0, alpha = 1, shape = 0, fill = NA)), 
+                       breaks = effect_sizes,
+                       labels = effect_sizes
+    )
+}
+
+
+
 sample_size <- c(c(2:19), seq(20, 10000, 10))
 effect_size <-  0.2
 effect_sizes <-  c(0.1, 0.2, 0.3, 0.4, .5)
@@ -185,7 +199,7 @@ options(digits = 7)
 precison <- 200
 
 sample_size <- seq(5, 10000, 5)
-effect_sizes <-  seq(0.05, 0.5, 0.05)
+effect_sizes <-  seq(0.1, 0.5, 0.1)
 # effect_sizes <-  .4
 
 ss_long <- rep(sample_size, times = length(effect_sizes))
@@ -289,20 +303,27 @@ dyn_crit3 <- dyn_df |>
   mutate(crit_eff = if_else(
     alpha < 1e-10, 0.98*eff_size, crit_eff)
     ) |> 
-  ggplot(aes(x = n, y = crit_eff, group = eff_size, colour = eff_size))+
+  ggplot(aes(x = n, y = crit_eff, group = eff_size, colour = as.factor(eff_size)))+
   geom_point(alpha = .2)+
   geom_line(alpha = .2, linewidth = 1)+
   scale_x_log10("Sample Size")+
   scale_y_continuous("Cohen's d", breaks = seq(0, 2, 0.5), limits = c(0, 2))+
-  scale_colour_gradient("Predicted Effect Size", 
-                        guide = guide_colourbar(barwidth = 15, barheight = 0.8, title.vjust = 1))+
-  labs(title = "Critical Effect Sizes vs Sample Sizes with Dynamic Alpha Rule")+
-  theme_project_light(base_size = 13)+
-  theme(panel.grid.major.y = element_line())
+  labs(title = "Critical Effect Sizes with Dynamic Alpha Rule")+
+  theme_project_light(base_size = 16)+
+  theme(panel.grid.major.y = element_line())+
+  scale_color_manual("Predicted Effect Size",
+                     values = MetBrewer::met.brewer(name = "Troy", n = length(effect_sizes), type = "continuous"),
+                     guide = guide_legend(title.vjust = .5,
+                                          override.aes = list(linewidth = 3, size = 0, alpha = 1, shape = 0, fill = NA)),
+                     # breaks = effect_sizes,
+                     # labels = effect_sizes
+  )
+
+dyn_crit3
 
 ggsave(filename = here::here("images", "ch1", "dyn_crit.png"), plot = dyn_crit1, width = 10, height = 8, dpi = 360) 
 ggsave(filename = here::here("images", "ch1", "dyn_crit_tidy.png"), plot = dyn_crit2, width = 10, height = 8, dpi = 360) 
-ggsave(filename = here::here("images", "ch1", "dyn_crit_fake.png"), plot = dyn_crit3, width = 10, height = 8, dpi = 360) 
+ggsave(filename = here::here("images", "ch1", "dyn_crit_full.png"), plot = dyn_crit3, width = 10, height = 8, dpi = 360) 
 
 # # beta
 # dyn_df |>
@@ -322,6 +343,8 @@ ggsave(filename = here::here("images", "ch1", "dyn_crit_fake.png"), plot = dyn_c
 #   scale_x_log10()
 
 
+
+##### Experimenting with different Non-centrality Parameter - moving t-distribution = consistency?? #####
 
 my_power.t.test <- function (
     n = NULL, 

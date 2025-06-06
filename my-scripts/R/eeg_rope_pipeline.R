@@ -72,11 +72,11 @@ add_rope <- function(df, alpha = 0.05, sample_size, rope_func, sequential = TRUE
     for (i in 1:length(sample_size)){ 
       rope_df[[i]] <- df |> 
         dplyr::filter(n_trial == sample_size[i]) |>  
-        rope_func(...)
+        rope_func(replication = replication, ...)
     }
     # bind the cols in list together into one df
     full_rope_df <- dplyr::bind_rows(rope_df) |> 
-     dplyr::mutate(n_trial  = sample_size)
+     dplyr::mutate(n_trial = sample_size)
   }
     # add back to main df supplied to function, lining up sample size and time.
   output <- df |> 
@@ -197,8 +197,8 @@ generate_rope_df <- function(df, pipeline_attr, rope_func, null_rope, replicatio
             if_else((df_2$ci_u < df_2$max), 
                     if_else((df_2$ci_l > df_2$min), 0, NA), NA), NA)
       )
-    
     message("\nAn Alternative ROPE was used to Define Significance")
+    
   }else{
     rope_sig <- quote(
       dplyr::if_else(
@@ -281,6 +281,8 @@ eval_rope <- function(df, rope_df, alpha, effect_time_vector){
   # Checking for Significance
   p_cond <- expression(p < alpha)
   p13_cond <- expression(p_13 < alpha)
+  # bonferroni significance
+  p13_bcond <- expression(p_13 < (alpha/length(unique(df$time))))
   
   # Time outside of an effect
   time_cond <- expression((time < effect_time[1] | time > effect_time[2]))
@@ -296,6 +298,11 @@ eval_rope <- function(df, rope_df, alpha, effect_time_vector){
   tp13_cond <- expression(eval(p13_cond) & !eval(time_cond))
   fn13_cond <- expression(!eval(p13_cond) & !eval(time_cond))
   tn13_cond <- expression(!eval(p13_cond) & eval(time_cond))
+  
+  fp13_bcond <- expression(eval(p13_bcond) & eval(time_cond))
+  tp13_bcond <- expression(eval(p13_bcond) & !eval(time_cond))
+  fn13_bcond <- expression(!eval(p13_bcond) & !eval(time_cond))
+  tn13_bcond <- expression(!eval(p13_bcond) & eval(time_cond))
   
   # creating a df to find fpr and fnr, to evaluate different ropes
   eval_rope_df <- rope_df |>  
@@ -323,8 +330,12 @@ eval_rope <- function(df, rope_df, alpha, effect_time_vector){
       tn = dplyr::if_else(eval(tn13_cond), 1, 0),
       fn = dplyr::if_else(eval(fn13_cond), 1, 0),
       tp = dplyr::if_else(eval(tp13_cond), 1, 0),
+      fp_b = dplyr::if_else(eval(fp13_bcond), 1, 0),
+      tn_b = dplyr::if_else(eval(tn13_bcond), 1, 0),
+      fn_b = dplyr::if_else(eval(fn13_bcond), 1, 0),
+      tp_b = dplyr::if_else(eval(tp13_bcond), 1, 0),
     ) |> 
-   dplyr::select(n_trial, experiment, fp, tn, fn, tp) |> 
+   dplyr::select(n_trial, experiment, fp, tn, fn, tp, fp_b, tn_b, fn_b, tp_b) |> 
     filter(!is.na(n_trial)) |> 
     group_by(n_trial, experiment) |> 
     summarise(across(.cols = dplyr::everything(), 
@@ -335,14 +346,18 @@ eval_rope <- function(df, rope_df, alpha, effect_time_vector){
       prop_fp = sum_fp / (sum_fp + sum_tn),
       prop_tp = sum_tp / (sum_tp + sum_fn),
       prop_fn = sum_fn / (sum_fn + sum_tp),
-      prop_tn = sum_tn / (sum_tn + sum_fp)
+      prop_tn = sum_tn / (sum_tn + sum_fp),
+      prop_fp_b = sum_fp_b / (sum_fp_b + sum_tn_b),
+      prop_tp_b = sum_tp_b / (sum_tp_b + sum_fn_b),
+      prop_fn_b = sum_fn_b / (sum_fn_b + sum_tp_b),
+      prop_tn_b = sum_tn_b / (sum_tn_b + sum_fp_b)
     )
   
   output <- eval_rope_df |> 
     dplyr::inner_join(baseline_df, by = c("n_trial", "experiment")) |> 
     dplyr::mutate(
       rel_fp = fp/sum_fp,  # relative FP proportion to baseline (% of FP that were not prevented)
-      rel_tp = tp/sum_tp  # relative TP proportion to baseline (% of TP that were not prevented)
+      rel_tp = tp/sum_tp   # relative TP proportion to baseline (% of TP that were not prevented)
     ) 
   
   

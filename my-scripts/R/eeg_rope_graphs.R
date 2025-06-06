@@ -65,14 +65,16 @@ fp_graphs <- function(df, effect = T, var){
     geom_point(size = 2, shape = 15, show.legend = F)+
     geom_line(aes(y = prop_fp, colour = '6'), linewidth = 1.3)+ ## showing baseline values - fp for no ROPE
     geom_point(aes(y = prop_fp, colour = '6'), size = 2, shape = 15, show.legend = F)+
-    geom_hline(yintercept = 0, linewidth = 1)+
+    geom_line(aes(y = prop_fp_b, colour = '7'), linewidth = 1.3)+ ## showing baseline values - fp for no ROPE
+    geom_point(aes(y = prop_fp_b, colour = '7'), size = 2, shape = 15, show.legend = F)+
+    # geom_hline(yintercept = 0, linewidth = 1)+
     scale_x_continuous("Sample Size", 
                        breaks = c(10, 25, 50, 100, 150, 200), 
                        labels = c("10", "25", "50", "100", "150", "200"))+
     scale_y_continuous("FPR")+
     scale_color_manual(name = "Method", 
-                       values = MetBrewer::met.brewer(name = "Lakota", type = "discrete", n = 6), 
-                       labels = c("Baseline", "ROI Control", "Pre-stimulus", "0.1 Units", "0.2 Units", "0.3 Units"),
+                       values = viridis::viridis(7), 
+                       labels = c("Raw", "Bonf.", "ROI Control", "Pre-stimulus", "+/- 0.1", "+/- 0.2", "+/- 0.3"),
                        guide = guide_legend(override.aes = list(linewidth = 3)))+
     ggtitle("False Positves - Different ROPEs")
   
@@ -83,13 +85,15 @@ fp_graphs <- function(df, effect = T, var){
     geom_point(size = 2, shape = 15, show.legend = F)+
     geom_line(aes(y = prop_fp, colour = '6'), linewidth = 1.3)+ ## showing baseline values - fp for no ROPE
     geom_point(aes(y = prop_fp, colour = '6'), size = 2, shape = 15, show.legend = F)+
+    geom_line(aes(y = prop_fp_b, colour = '7'), linewidth = 1.3)+ ## showing baseline values - fp for no ROPE
+    geom_point(aes(y = prop_fp_b, colour = '7'), size = 2, shape = 15, show.legend = F)+
     scale_x_continuous("Sample Size", 
                        breaks = c(10, 25, 50, 100, 150, 200), 
                        labels = c("10", "25", "50", "100", "150", "200"))+
     scale_y_log10("FPR")+
     scale_color_manual(name = "Method", 
-                       values = MetBrewer::met.brewer(name = "Lakota", type = "discrete", n = 6), 
-                       labels = c("Baseline", "ROI Control", "Pre-stimulus", "0.1 Units", "0.2 Units", "0.3 Units"),
+                       values = viridis::viridis(7), 
+                       labels = c("Raw", "Bonf.", "ROI Control", "Pre-stimulus", "+/- 0.1", "+/- 0.2", "+/- 0.3"),
                        guide = guide_legend(override.aes = list(linewidth = 3)))+
     ggtitle("False Positves - Different ROPEs")
 
@@ -146,13 +150,15 @@ tp_graphs <- function(df, var){
     geom_point(size = 2, shape = 15, show.legend = F)+
     geom_line(aes(y = prop_tp, colour = '6'), linewidth = 1.3 )+ ## showing baseline values - fp for no ROPE
     geom_point(aes(y = prop_tp, colour = '6'), size = 2, shape = 15, show.legend = F)+
+    geom_line(aes(y = prop_tp_b, colour = '7'), linewidth = 1.3 )+ ## showing baseline values - fp for no ROPE
+    geom_point(aes(y = prop_tp_b, colour = '7'), size = 2, shape = 15, show.legend = F)+
     scale_x_continuous("Sample Size", 
                        breaks = c(10, 25, 50, 100, 150, 200), 
                        labels = c("10", "25", "50", "100", "150", "200"))+
     scale_y_log10("TPR")+
     scale_color_manual(name = "Method", 
-                       values = MetBrewer::met.brewer(name = "Lakota", type = "discrete", n = 6), 
-                       labels = c("Baseline", "ROI Control", "Pre-stimulus", "0.1 Units", "0.2 Units", "0.3 Units"),
+                       values = viridis::viridis(7), 
+                       labels = c("Raw", "Bonf.", "ROI Control", "Pre-stimulus", "+/- 0.1", "+/- 0.2", "+/- 0.3"),
                        guide = guide_legend(override.aes = list(linewidth = 3)))+
     ggtitle("True Positves - Different ROPEs")+
     theme_project_light(base_size = 12)
@@ -163,13 +169,15 @@ tp_graphs <- function(df, var){
     geom_point(size = 2, shape = 15, show.legend = F)+
     geom_line(aes(y = prop_tp, colour = '6'), linewidth = 1.3 )+ ## showing baseline values - fp for no ROPE
     geom_point(aes(y = prop_tp, colour = '6'), size = 2, shape = 15, show.legend = F)+
+    geom_line(aes(y = prop_tp_b, colour = '7'), linewidth = 1.3 )+ ## showing baseline values - fp for no ROPE
+    geom_point(aes(y = prop_tp_b, colour = '7'), size = 2, shape = 15, show.legend = F)+
     scale_x_continuous("Sample Size", 
                        breaks = c(10, 25, 50, 100, 150, 200), 
                        labels = c("10", "25", "50", "100", "150", "200"))+
     scale_y_continuous("TPR")+
     scale_color_manual(name = "Method", 
-                       values = MetBrewer::met.brewer(name = "Lakota", type = "discrete", n = 6), 
-                       labels = c("Baseline", "ROI Control", "Pre-stimulus", "0.1 Units", "0.2 Units", "0.3 Units"),
+                       values = viridis::viridis(7), 
+                       labels = c("Raw", "Bonf.", "ROI Control", "Pre-stimulus", "+/- 0.1", "+/- 0.2", "+/- 0.3"),
                        guide = guide_legend(override.aes = list(linewidth = 3)))+
     ggtitle("True Positves - Different ROPEs")+
     theme_project_light(base_size = 12)
