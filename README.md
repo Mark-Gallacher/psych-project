@@ -129,8 +129,7 @@ use is called the **Region of Practical Equivalence** (ROPE).
 
 <details>
 <summary>Figure 3</summary>
-!["Image showing four different cases of significance when we add a
-ROPE"](images/readme_images/equivalence.png)
+!["Image showing four different cases of significance when we add a ROPE"](images/readme_images/equivalence.png)
 
 This chart shows the mean value with some confidence intervals. With our region
 around zero, the equivalence region, defined by some value *m*, we can
@@ -154,8 +153,7 @@ is not big enough to be of practical use.
 
 <details>
 <summary>Figure 4</summary>
-!["Image showing the reduced false positive rate when we increase margin of the
-ROPE"](images/readme_images/seq_rope_mean.png )
+!["Image showing the reduced false positive rate when we increase margin of the ROPE"](images/readme_images/seq_rope_mean.png )
 
 What this graph is trying to show is that the required mean difference for a
 statistically significant result decreases with more data. Importantly, our
@@ -190,8 +188,7 @@ rate *decreases* as more information is collected.
 
 <details>
 <summary>Figure 5</summary>
-!["Overall false positive and true positive rates for various ROPEs and Dynamic
-Alphas"](images/readme_images/fp_tp_grid.png )
+!["Overall false positive and true positive rates for various ROPEs and Dynamic Alphas"](images/readme_images/fp_tp_grid.png )
 
 Panel A and B show the False and True Positive Rate (FPR/TPR) for the ROPE
 method. While panels C and D display FPR and TPR for the dynamic alpha
