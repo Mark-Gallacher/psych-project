@@ -74,9 +74,6 @@ strictness would also *increase*. In some fields of science, this is the standar
 approach, like Physics where improving the resolution of the data allows for
 more precise hypotheses. 
 
-!["Image Showing an Inconsistent Framework - Error not
-Decreasing"](images/readme_images/p1_test.png )
-
 <details>
 <summary>Figure 1</summary>
 "In an Inconsistent system, the number of errors do not decrease when we
@@ -97,11 +94,17 @@ genuinely the better one, like when our new drug doesn't work or the new
 intervention has no effect. We would want to know quite quickly if we are
 investing our time and effort into the wrong approach.
 
+<details>
+<summary>Figure 2</summary>
 !["Image Showing an Consistent Framework - Error
-Decreasing"](images/readme_images/p2_test.png "In a consistent system, we are
-making fewer errors when our sample size increases. Having fewer false
-positives, with larger samples, means the larger studies are statistically more
-reliable and robust out of the box, compared to smaller experiments.")
+Decreasing"](images/readme_images/p2_test.png )
+
+In a consistent system, we are making fewer errors when our sample size
+increases. Having fewer false positives, with larger samples, means the larger
+studies are statistically more reliable and robust out of the box, compared to
+smaller experiments.
+
+</details>
 
 ## The Solution?
 
@@ -120,16 +123,22 @@ meaningful. This technique has many names in science, the region of
 indifference, the minimum effect size of interest, but the term I am going to
 use is called the **Region of Practical Equivalence** (ROPE). 
 
+<details>
+<summary>Figure 3</summary>
 !["Image showing four different cases of significance when we add a
-ROPE"](images/readme_images/equivalence.png "This chart shows the mean value
-with some confidence intervals. With our region around zero, the equivalence
-region, defined by some value \"m\", we can categorise our results are
-statistically significant and practically significant. In case A, we have a
-strong positive result, as the mean and confidence intervals are completely
-outside our equivalence region. Unlike B and C, which have at least part of
-their confidence intervals inside this region telling us the observed effect is
-not enough to reject the null. In case C and D, we can actually \"accept\" the
-null hypothesis because they are statistically equivalent to zero.")
+ROPE"](images/readme_images/equivalence.png)
+
+This chart shows the mean value with some confidence intervals. With our region
+around zero, the equivalence region, defined by some value *m*, we can
+categorise our results are statistically significant and practically
+significant. In case A, we have a strong positive result, as the mean and
+confidence intervals are completely outside our equivalence region. Unlike B
+and C, which have at least part of their confidence intervals inside this
+region telling us the observed effect is not enough to reject the null. In case
+C and D, we can actually accept the null hypothesis because they are
+statistically equivalent to zero.
+
+</details>
 
 With our ROPE, we define a region, such as 0 +/- 0.25, that if our data falls
 into it, we *hesitate* to reject the null hypothesis. Even though, we would
@@ -139,14 +148,19 @@ observed a *good enough* difference. This could mean our sample is not as
 informative as we would like it to be or that the effect size we are observing
 is not big enough to be of practical use.
 
+<details>
+<summary>Figure 4</summary>
 !["Image showing the reduced false positive rate when we increase margin of the
-ROPE"](images/readme_images/seq_rope_mean.png "What this graph is trying to
-show is that the required mean difference for a statistically significant
-result decreases with more data. Importantly, our ROPE (shown with 5 different
-sizes) is preventing us from rejecting the null hypothesis when the mean
-difference is smaller than our defined margin. Notice how small the differences
-are in the first plot, are we really saying all of these are scientifically
-important.")
+ROPE"](images/readme_images/seq_rope_mean.png )
+
+What this graph is trying to show is that the required mean difference for a
+statistically significant result decreases with more data. Importantly, our
+ROPE (shown with 5 different sizes) is preventing us from rejecting the null
+hypothesis when the mean difference is smaller than our defined margin. Notice
+how small the differences are in the first plot, are we really saying all of
+these are scientifically important.
+
+</details>
 
 ## The Other Solution? 
 
@@ -170,17 +184,22 @@ experiment - one with *lower* error rates. This means as our sample size
 *increases*, so too does the strictness of our test, ensuring the false positive
 rate *decreases* as more information is collected. 
 
+<details>
+<summary>Figure 5</summary>
 !["Overall false positive and true positive rates for various ROPEs and Dynamic
-Alphas"](images/readme_images/fp_tp_grid.png "Panel A and B show the False and
-True Positive Rate (FPR/TPR) for the ROPE method. While panels C and D display
-FPR and TPR for the dynamic alpha approach. There is a lot going on here, but
-the important thing is that both the ROPE and the dynamic alpha technique
-reduce the FPR as sample sizes increase, while the default (raw) method is much
-more static. We can achieve statistical consistency but making never rejecting
-the null hypothesis, even when it is wrong. To show we are not prevent
-ourselves from detecting a meaningful effect, the TPR illustrates the both
-methods are only having a minimal effect compared to the default (raw)
-strategy.")
+Alphas"](images/readme_images/fp_tp_grid.png )
+
+Panel A and B show the False and True Positive Rate (FPR/TPR) for the ROPE
+method. While panels C and D display FPR and TPR for the dynamic alpha
+approach. There is a lot going on here, but the important thing is that both
+the ROPE and the dynamic alpha technique reduce the FPR as sample sizes
+increase, while the default (raw) method is much more static. We can achieve
+statistical consistency but making never rejecting the null hypothesis, even
+when it is wrong. To show we are not prevent ourselves from detecting a
+meaningful effect, the TPR illustrates the both methods are only having a
+minimal effect compared to the default (raw) strategy.
+
+</details>
 
 
 This also prevents us from rejecting the null hypothesis when we have very
