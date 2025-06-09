@@ -76,10 +76,14 @@ more precise hypotheses.
 
 <details>
 <summary>Figure 1</summary>
-"In an Inconsistent system, the number of errors do not decrease when we
+
+!["Image Showing an Inconsistent Framework - Error Not Decreasing"](images/readme_images/p1_test.png )
+
+In an Inconsistent system, the number of errors do not decrease when we
 increase the quantity of information. Ideally, the larger and more
 expensive experiments should have a small error rate to much smaller
-studies, but this is not the case." 
+studies, but this is not the case.
+
 </details>
 
 This concept of reducing the rate of error when our sample size increases is
@@ -96,8 +100,8 @@ investing our time and effort into the wrong approach.
 
 <details>
 <summary>Figure 2</summary>
-!["Image Showing an Consistent Framework - Error
-Decreasing"](images/readme_images/p2_test.png )
+
+!["Image Showing an Consistent Framework - Error Decreasing"](images/readme_images/p2_test.png )
 
 In a consistent system, we are making fewer errors when our sample size
 increases. Having fewer false positives, with larger samples, means the larger
